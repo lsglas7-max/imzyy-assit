@@ -1,0 +1,12 @@
+IMZYY XL Launcher v3 (ARM64)
+
+Fast path:
+  gh auth login
+  bash scripts/github-setup.sh imzyy-xl-launcher public --release v3.0.0
+
+Manual path:
+  1. Upload the contents of this ZIP to a GitHub repository root.
+  2. Push to main/master or run Actions > "Build IMZYY XL Launcher (ARM64)".
+  3. Download artifact "IMZYY-XL-Launcher-ARM64-debug", or open the Release created for a v* tag.
+
+The job prints the APK size in the run summary.
