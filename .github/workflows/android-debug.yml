@@ -75,6 +75,14 @@ jobs:
         working-directory: ${{ steps.loc.outputs.dir }}
         run: bash scripts/build-imzyy.sh all
 
+      - name: Upload Gradle log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-log
+          path: ${{ steps.loc.outputs.dir }}/output/gradle.log
+          if-no-files-found: ignore
+
       - name: APK size report
         working-directory: ${{ steps.loc.outputs.dir }}
         run: |
