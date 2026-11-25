@@ -1,17 +1,15 @@
 # Third-party notices
 
-## Amethyst Android engine
+## FlameLauncher for Android
 
-- Project: https://github.com/AngelAuraMC/Amethyst-Android
-- Default source ref: `v3_openjdk`
-- License stated by upstream: GNU Lesser General Public License v3.0 (LGPL-3.0)
-- The exact Git commit used by a CI build is written to `output/BUILD-INFO.txt`.
-- The integration is applied as an overlay to the upstream `app_pojavlauncher` application module. It retains upstream engine source, license files, copyright notices and recursive native submodules.
+- Project: https://github.com/FlameLaunchers/FlameLauncher-Android
+- Source ref: `main` (the exact resolved commit is recorded in `output/BUILD-INFO.txt` for each build)
+- License: AGPL-3.0
+- Use: Android application, JVM/game launch pipeline, renderer bridge, native input and audio components, version/loader/modpack installation.
+- The build script retains the complete upstream checkout (including LICENSE and NOTICE) and emits a corresponding patched source archive for each successful build.
 
-The IMZYY dashboard is added to the same Android application package. The upstream `PojavApplication`, `TestStorageActivity`, `LauncherActivity`, game `MainActivity`, JVM/renderer components and native input pipeline remain in the build. The storage bootstrap entry activity is patched only to open the IMZYY dashboard after the original storage and asset initialization calls.
+Upstream's README identifies these major components and licenses: Terracotta (AGPL-3.0), PojavLauncher core (GPL-3.0), ZalithLauncher 2 (GPL-3.0), EasyTier (LGPL-3.0), libadrenotools (BSD-2-Clause), patched LWJGL (BSD-3-Clause), and OpenJDK Temurin (GPL-2.0 with Classpath Exception). Consult the exact upstream `NOTICE` and license files in the source archive for the complete dependency list and required notices.
 
-## Other upstream components
+The IMZYY branding patch does not remove upstream copyright notices or license files. When distributing a combined app, comply with AGPL-3.0 source-availability requirements and all third-party license terms. Do not redistribute custom Vulkan drivers unless their separate terms allow it.
 
-Amethyst's README identifies dependencies/components with independent licenses and restrictions, including PojavLauncher components, AndroidX/support libraries, GL4ES, MobileGlues, ANGLE, OpenJDK, LWJGL/LWJGLX, Mesa, OpenAL-Soft, SDL, sdl2-compat, bytehook, libepoxy and others. The exact license state must be checked in the fetched upstream commit and recursive submodules used by the build.
-
-In particular, upstream lists some parts as unknown license or All Rights Reserved/ARR. This project does not grant permission to redistribute components for which the rightsholder has not granted redistribution rights. Before publishing an APK, retain notices and provide corresponding source/modifications as required by each applicable license, and verify that all bundled components may be redistributed in that form.
+Minecraft is a trademark of Mojang AB / Microsoft. IMZYY XL Launcher is an independent project and is not affiliated with or endorsed by Mojang or Microsoft.

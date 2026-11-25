@@ -1,133 +1,137 @@
 #!/usr/bin/env python3
-"""Offline fixture test for the Amethyst overlay patcher."""
-from __future__ import annotations
-import os
+"""Offline tests for the IMZYY UI/performance overlay against an upstream-shaped fixture."""
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCHER = ROOT / "scripts/prepare-amethyst.py"
+PATCHER = ROOT / "scripts/prepare-imzyy.py"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="imzyy-amethyst-test-") as tmp:
-        engine = Path(tmp) / "engine"
-        app = engine / "app_pojavlauncher"
-        java = app / "src/main/java/net/kdt/pojavlaunch"
-        java.mkdir(parents=True)
-        (engine / "settings.gradle").write_text("rootProject.name='fixture'\n")
-        manifest = app / "src/main/AndroidManifest.xml"
-        manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <application android:name="net.kdt.pojavlaunch.PojavApplication" android:label="Amethyst">
-    <activity android:name="net.kdt.pojavlaunch.TestStorageActivity" android:exported="true">
-      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-    </activity>
-    <activity android:name=".LauncherActivity" android:exported="false"/>
-  </application>
-</manifest>''', encoding="utf-8")
-        (java / "TestStorageActivity.java").write_text('''package net.kdt.pojavlaunch;
-import android.content.Intent;
-class TestStorageActivity { void exit() { new Intent(this, LauncherActivity.class); } }
-''', encoding="utf-8")
-        gradle = app / "build.gradle"
-        gradle.write_text("""plugins { id 'com.android.application' }
-android {
-    defaultConfig {
-        minSdkVersion 21
-    }
-}
-dependencies {
-}
-""", encoding="utf-8")
+    with tempfile.TemporaryDirectory(prefix="imzyy-flame-fixture-") as tmp:
+        root = Path(tmp)
+        app = root / "app"
+        (app / "src/main/res/values").mkdir(parents=True)
+        (app / "src/main/res/mipmap-anydpi-v26").mkdir(parents=True)
+        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme").mkdir(parents=True)
+        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation").mkdir(parents=True, exist_ok=True)
+        (app / "build.gradle.kts").write_text('''plugins { id("com.android.application") }
+android { namespace = "kr.co.donghyun.flamelauncher"; defaultConfig { applicationId = "kr.co.donghyun.flamelauncher"; ndk { abiFilters += listOf("arm64-v8a") } } }
+''')
+        (root / "settings.gradle.kts").write_text('rootProject.name = "FlameLauncher"')
+        (app / "src/main/AndroidManifest.xml").write_text('''<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><application><activity android:name=".presentation.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity><activity android:name=".presentation.MinecraftActivity" android:process=":minecraft"/></application></manifest>''')
+        (app / "src/main/res/values/strings.xml").write_text('''<resources><string name="app_name">FlameLauncher</string></resources>''')
+        (app / "src/main/res/values/colors.xml").write_text('''<resources><color name="bg_dark">#FF05080F</color><color name="flame_primary">#FF2E9BFF</color><color name="flame_accent">#FF22E0FF</color></resources>''')
+        theme = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme/Color.kt"
+        theme.write_text('''package kr.co.donghyun.flamelauncher.presentation.ui.theme
+val Orange = Color(0xFF5AB8FF)
+val Flame = Color(0xFF2E9BFF)
+val FlamePrimary = Color(0xFF2E9BFF)
+val FlameAccent = Color(0xFF22E0FF)
+val BgDark = Color(0xFF05080F)
+val BgSurface = Color(0xFF0B1422)
+val BgBorder = Color(0xFF1C2E47)
+val TextSub = Color(0xFF8CA2C0)
+val BgItem = Color(0xFF08101B)
+val FlameLight = Color(0xFF7CC9FF)
+val FlameDark = Color(0xFF0B4A8F)
+''')
+        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text("class MinecraftActivity")
+        screen_dir = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen"
+        screen_dir.mkdir(parents=True)
+        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme/Type.kt").write_text("val Typography = Typography()")
+        (screen_dir / "MainScreen.kt").write_text('''val compact = "Flame"; val full = "FlameLauncher"
+val topbar = Modifier.height(52.dp).background(BgSurface)
+val title = "FlameLauncher", color = TextPrimary, fontSize = 14.sp
+''')
+        (screen_dir / "SettingsScreen.kt").write_text('''package kr.co.donghyun.flamelauncher.presentation.ui.screen
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(if (tablet) 20.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (tablet) 16.dp else 10.dp)
+        ) {
+            // 언어 섹션
+        }
+/**
+ * 전역 렌더러 선택용 라디오 한 줄.
+ */
+''')
+        (screen_dir / "Buttons.kt").write_text('''Button(colors = ButtonDefaults.buttonColors(containerColor = Flame)) { Text("Go", color = Color.White) }
+Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("Stay", color = Color.White) }
+''')
+        (app / "src/main/res/drawable").mkdir(parents=True)
+        (app / "src/main/res/drawable/img_logo.png").write_bytes(b"old-logo")
+        for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+            (app / "src/main/res/mipmap-anydpi-v26" / name).write_text('''<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@color/black"/><foreground android:drawable="@mipmap/ic_launcher_foreground"/></adaptive-icon>''')
 
-        env = os.environ.copy()
-        env["IMZYY_ABI_FILTER"] = "arm64-v8a"
-        command = [sys.executable, str(PATCHER), "--engine-dir", str(engine), "--project-root", str(ROOT)]
-        subprocess.run(command, check=True, env=env)
-        subprocess.run(command, check=True, env=env)  # Idempotency check.
+        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(root), "--repo", "owner/imzyy"], check=True)
+        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(root), "--repo", "owner/imzyy"], check=True)
+        strings = ET.parse(app / "src/main/res/values/strings.xml").getroot()
+        assert strings.find("string").text == "IMZYY XL Launcher"
+        for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+            icon = ET.parse(app / "src/main/res/mipmap-anydpi-v26" / name).getroot()
+            assert icon.find("foreground").get(ANDROID + "drawable") == "@drawable/imzyy_launcher_foreground"
+        assert (app / "src/main/res/drawable/imzyy_launcher_foreground.xml").is_file()
+        assert (app / "src/main/res/drawable/img_logo.xml").is_file()
+        assert not (app / "src/main/res/drawable/img_logo.png").exists()
+        main_screen = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/MainScreen.kt").read_text()
+        assert '"IMZYY"' in main_screen and '"IMZYY XL"' in main_screen
+        assert ".height(58.dp)" in main_screen and "fontSize = 16.sp" in main_screen
+        settings_screen = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/SettingsScreen.kt").read_text()
+        assert "ImzyyPerformanceProfiles(" in settings_screen
+        assert 'maxHeapMb = performanceHeap' in settings_screen
+        assert 'resolutionScalePercent = 75' in settings_screen
+        assert 'resolutionScalePercent = 85' in settings_screen
+        assert 'resolutionScalePercent = 100' in settings_screen
+        assert settings_screen.count("IMZYY PERFORMANCE PROFILES") == 1
+        typography = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme/Type.kt").read_text()
+        assert "FontWeight.ExtraBold" in typography and "FontFamily.SansSerif" in typography
+        assert "FontWeight.SemiBold" in typography
+        assert (root / "settings.gradle.kts").read_text() == 'rootProject.name = "IMZYY XL Launcher"'
+        palette = theme.read_text()
+        assert "0xFFF2F2F2" in palette and "0xFF000000" in palette, "monochrome palette"
+        assert "0xFF2E9BFF" not in palette and "0xFF8B5CF6" not in palette
+        buttons = (screen_dir / "Buttons.kt").read_text()
+        assert 'Text("Go", color = Color.Black)' in buttons, "white-on-accent must flip to black"
+        assert 'Text("Stay", color = Color.White)' in buttons, "non-accent buttons must keep white text"
+        assert 'Text("FPS", color = Color.Black' in settings_screen
+        hub_dir = app / "src/main/java/id/imzyy/xl"
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "ModManager.kt", "TextureOptimizer.kt", "InstanceLocator.kt", "Net.kt", "ImzyyConfig.kt"):
+            assert (hub_dir / name).is_file(), name
+        hub_source = (hub_dir / "ImzyyHubActivity.kt").read_text()
+        assert '"CONTROL MOUSE"' in hub_source and "applyMouseControls" in hub_source
+        assert '"RENDER DISTANCE"' in hub_source and "applyRenderDistance" in (hub_dir / "FpsTuner.kt").read_text()
+        assert "optimizeTextures" in hub_source and "recompressPng" in (hub_dir / "TextureOptimizer.kt").read_text()
+        assert "IMPORT FILE MOD .JAR" in hub_source and "ModManager.toggle" in hub_source
+        perf_pack = (hub_dir / "PerfPack.kt").read_text()
+        assert 'PerfMod("voxy"' in perf_pack and 'queue.add("modmenu")' in perf_pack
+        cfg = (hub_dir / "ImzyyConfig.kt").read_text()
+        assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg
+        assert (app / "src/main/res/values/imzyy_theme.xml").is_file()
+        man = ET.parse(app / "src/main/AndroidManifest.xml").getroot()
+        acts = man.find("application").findall("activity")
+        launchers = [a.get(ANDROID + "name") for a in acts for f in a.findall("intent-filter")
+                     for c in f.findall("category") if c.get(ANDROID + "name") == "android.intent.category.LAUNCHER"]
+        assert launchers == ["id.imzyy.xl.ImzyyHubActivity"], launchers
+        assert sum(1 for a in acts if a.get(ANDROID + "name") == ".presentation.MinecraftActivity") == 1
+        assert sum(1 for a in acts if a.get(ANDROID + "name") == ".presentation.MainActivity") == 1
+        gradle = (app / "build.gradle.kts").read_text()
+        assert 'applicationId = "kr.co.donghyun.flamelauncher"' in gradle, "OAuth package identity must remain stable in this pass"
 
-        xml = ET.parse(manifest).getroot()
-        application = xml.find("application")
-        assert application is not None
-        assert application.get(ANDROID + "name") == "net.kdt.pojavlaunch.PojavApplication"
-        test_storage = next(x for x in application if x.tag == "activity" and x.get(ANDROID + "name", "").endswith("TestStorageActivity"))
-        filters = test_storage.findall("intent-filter")
-        assert any(any(a.get(ANDROID + "name") == "android.intent.action.MAIN" for a in f.findall("action")) and
-                   any(c.get(ANDROID + "name") == "android.intent.category.LAUNCHER" for c in f.findall("category")) for f in filters)
-        dashboard = next(x for x in application if x.tag == "activity" and x.get(ANDROID + "name") == "com.imzyy.xllauncher.MainActivity")
-        assert dashboard.get(ANDROID + "exported") == "false"
-        assert not dashboard.findall("intent-filter")
-
-        source = (java / "TestStorageActivity.java").read_text(encoding="utf-8")
-        assert "com.imzyy.xllauncher.MainActivity.class" in source
-        assert "LauncherActivity.class" not in source
-
-        gradle_text = gradle.read_text(encoding="utf-8")
-        assert "minSdkVersion 26" in gradle_text
-        assert "abiFilters 'arm64-v8a'" in gradle_text
-        assert gradle_text.count("androidx.documentfile:documentfile") == 1
-        assert "commons-compress" not in gradle_text
-        assert not (ROOT / "web").exists(), "Android-only project must not contain a website frontend"
-
-        launcher_source = (ROOT / "android/app/src/main/java/com/imzyy/xllauncher/MainActivity.kt").read_text(encoding="utf-8")
-        assert "android.webkit.WebView" not in launcher_source
-        assert "DecelerateInterpolator" in launcher_source and "OnPreDrawListener" in launcher_source
-        assert "OvershootInterpolator" in launcher_source and "pressable()" in launcher_source
-        assert '"Play Minecraft"' in launcher_source
-        assert "WebView" not in launcher_source and "setJavaScriptEnabled" not in launcher_source
-        ui_source = (ROOT / "android/app/src/main/java/com/imzyy/xllauncher/ui/UiKit.kt").read_text(encoding="utf-8")
-        assert "class Meter" in ui_source and "class PulseDot" in ui_source and "class DotGridDrawable" in ui_source
-        assert "GradientDrawable.Orientation" not in launcher_source, "Flat design: no gradient backgrounds"
-        assert 'thread(name = "IMZYY-home-probe")' in launcher_source, "Disk probes must stay off the main thread"
-        assert "engineChecks" in launcher_source
-        assert (ROOT / "scripts/install-android-sdk-components.sh").is_file()
-        assert "clearLauncherCache" in launcher_source and "cacheDir.deleteRecursively()" in launcher_source
-        bootstrap_source = (ROOT / "android/app/src/main/java/com/imzyy/xllauncher/engine/AmethystBootstrapper.kt").read_text(encoding="utf-8")
-        workflow = (ROOT / ".github/workflows/android-debug.yml").read_text(encoding="utf-8")
-        assert "__amethyst_preferences" in launcher_source
-        assert "LauncherPreferences" in launcher_source and "loadPreferences" in launcher_source
-        assert '"amethyst-root/"' in launcher_source and '"amethyst-active-profile/"' in launcher_source
-        assert '"amethyst-controls/"' in launcher_source
-        assert "isSensitiveAmethystKey" in launcher_source and "isSensitiveAmethystPath" in launcher_source
-        assert "defaultGameDirectory" in bootstrap_source and "controlMapDirectory" in bootstrap_source
-        assert "jre8-pojav" in workflow and "arm64-v8a" in workflow
-        assert "TestStorageActivity" in workflow or "scripts/build-amethyst.sh build" in workflow
-        assert "android-actions/setup-android@v4" in workflow
-        assert "cmdline-tools-version: '15859902'" in workflow
-        assert "packages: 'platform-tools'" in workflow
-        assert "setup-android@v3" not in workflow
-        assert "sdkmanager tools" not in workflow
-        assert "install-android-sdk-components.sh" in workflow
-        assert "platforms;android-37" not in workflow
-
-        # Reproduce a fresh runner with the API 37.0 minor-version package name.
-        sdk_root = Path(tmp) / "android-sdk"
-        mock_sdkmanager = Path(tmp) / "mock-sdkmanager"
-        mock_sdkmanager.write_text("""#!/usr/bin/env bash
-set -euo pipefail
-mkdir -p \"$MOCK_SDK_ROOT/platforms/android-37.0\" \"$MOCK_SDK_ROOT/ndk/27.3.13750724\"
-printf 'mock android jar' > \"$MOCK_SDK_ROOT/platforms/android-37.0/android.jar\"
-printf 'Pkg.Revision = 27.3.13750724\n' > \"$MOCK_SDK_ROOT/ndk/27.3.13750724/source.properties\"
-""", encoding="utf-8")
-        mock_sdkmanager.chmod(0o755)
-        install_env = os.environ.copy()
-        install_env["ANDROID_SDK_ROOT"] = str(sdk_root)
-        install_env["SDKMANAGER"] = str(mock_sdkmanager)
-        install_env["MOCK_SDK_ROOT"] = str(sdk_root)
-        subprocess.run(["bash", str(ROOT / "scripts/install-android-sdk-components.sh")], check=True, env=install_env)
-        api_alias = sdk_root / "platforms/android-37"
-        assert api_alias.is_symlink()
-        assert os.readlink(api_alias) == "android-37.0"
-        assert (api_alias / "android.jar").is_file()
-        assert (sdk_root / "ndk/27.3.13750724/source.properties").is_file()
-
-    print("Amethyst integration tests passed (native-only flat UI, animation, async probes, safe cache action, manifest, startup, Gradle, ABI, backup/restore, profile paths, control maps, JRE asset, SDK API-37 alias and idempotency).")
+    for kt in (ROOT / "android-overlay/kotlin").glob("*.kt"):
+        text = kt.read_text()
+        assert text.count("{") == text.count("}") and text.count("(") == text.count(")"), f"unbalanced: {kt.name}"
+    assert (ROOT / "scripts/build-imzyy.sh").is_file()
+    assert not (ROOT / "scripts/build-amethyst.sh").exists()
+    assert not (ROOT / "scripts/prepare-amethyst.py").exists()
+    print("IMZYY integration tests passed: single-app activity, branding, performance profiles, mouse controls, mod manager, Voxy compatibility wiring, lossless texture optimizer, ARM64 and idempotency.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

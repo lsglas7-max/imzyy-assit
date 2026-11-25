@@ -1,12 +1,7 @@
-.gradle/
-**/build/
-.idea/
-*.iml
-.DS_Store
-node_modules/
-local.properties
 .build/
+.gradle/
+local.properties
 output/
-__pycache__/
-*.pyc
-*.apk
+*.iml
+.idea/
+.DS_Store

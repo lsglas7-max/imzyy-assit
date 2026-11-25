@@ -1,112 +1,107 @@
-# IMZYY XL Launcher v6.0.0 — Android Native Edition
+# IMZYY XL Launcher — Premium Android ARM64 Edition (v3.1)
 
-IMZYY XL is an Android-only launcher interface for Minecraft Java Edition. The launcher UI is written in Kotlin and rendered with native Android views. This project no longer contains a website, Vercel frontend, HTML/CSS/JavaScript interface, or WebView-based launcher screen.
+IMZYY XL Launcher is a single Android application for **Minecraft: Java Edition**. The project embeds the complete upstream JVM/native launch stack and Minecraft game activity in the same APK. Users install and open **IMZYY XL Launcher only**; there is no second launcher APK to install or hand off to. The game activity runs as an isolated process inside the same Android application for stability, not as another launcher app.
 
-The final application is designed to be **one APK**: the IMZYY dashboard and the Amethyst Minecraft Java engine are merged into the same Android application package. The source ZIP is the integration project, not a prebuilt APK. The large Amethyst source tree, native submodules, and official JRE bootstrap asset are downloaded during the build workflow.
+## What is inside
 
-## What changed in v6.0.0
+The selected open-source engine currently documents:
 
-**Design**
-- New flat graphite theme with a single mint accent. No gradients, no emoji, no template-style glow.
-- Rebuilt home screen: hero card with Play button and pulsing engine-status dot, quick-action tiles, live memory meter, and grouped settings-style lists.
-- Every sub-page (versions, account, controller, files, performance, device monitor, engine check) shares the new components, a back chip in the header, and sentence-case buttons.
+- Minecraft Java versions from Alpha/Beta through current releases.
+- Vanilla, Fabric, Forge, NeoForge and Quilt.
+- Mod and modpack discovery/installation through CurseForge and Modrinth, including dependencies.
+- Version-matched OpenJDK runtimes selected automatically.
+- Zink, Krypton, GL4ES and MobileGlues rendering paths, with hardware-dependent fallback behavior.
+- Touch controls, editable on-screen buttons, hardware keyboard, mouse and gamepad support.
+- ARM64 Android builds.
 
-**Animation**
-- Staggered rise-in for every block on page open (pre-draw driven, no flicker).
-- Springy press feedback on tiles, buttons and chips; ripple clipped to rounded corners.
-- Memory meter eases to its value and refreshes every 2.5 s while the home screen is visible.
+OptiFine is not listed as a first-class integrated loader by this upstream. Do not assume it is guaranteed; use the upstream-supported loader and mod paths.
 
-**Optimization**
-- Engine inspection is computed once and cached.
-- Disk work (game-directory lookup, cache size, cache clearing) moved off the main thread, so screens open instantly.
-- Live refresh stops when the app is paused.
-- Hardware back returns to the home screen; edge-to-edge insets are handled.
-- Build workflow now has a layout check that fails early with a clear message if `scripts/` or `android/` was not uploaded.
+## v3.1: mouse controls, mod manager, Voxy option + texture optimizer
 
-Everything from v5.3.x is kept: single APK, Amethyst engine, encrypted `.imzyy` backup/restore, mod/resource/shader import, safe cache cleanup. There is still no website or WebView.
+- **Black / white theme** across the upstream screens (palette patch) with an adjusted contrast pass so white-on-accent button text becomes black.
+- **IMZYY Hub** is the new launcher entry screen (animated grid backdrop, staggered reveals, spring press feedback). **PLAY** opens the upstream launcher activity, which is untouched and still in the same APK.
+  - **BOOST**: one-tap `options.txt` profiles (Hemat FPS / Seimbang / Kualitas, original backed up) and a performance mod pack (Sodium or Embeddium, Lithium, FerriteCore, ModernFix, ImmediatelyFast, Entity Culling, Dynamic FPS) resolved live from Modrinth for the chosen Minecraft version + loader, with required dependencies, SHA-hash verification and a clean uninstall.
+  - **MOUSE**: per-instance mouse sensitivity, scroll sensitivity, invert-Y, raw input and left/right button swap. Values are saved in that instance's `options.txt`; restart Minecraft after applying. Hardware mouse/keyboard input itself is provided by the upstream engine.
+  - **MODS**: search Modrinth by Minecraft version/loader, import local `.jar` files through Android's file picker, enable/disable mods by reversible `.jar.disabled` rename, and remove mods from the selected instance.
+  - **BOOST / Render distance**: vanilla render distance is configurable from 2–32 chunks and simulation distance from 2–12 chunks. This is not an infinite-distance switch; distant terrain requires a compatible LOD mod and remains limited by hardware.
+  - **Voxy (optional)**: selected in the performance-mod catalogue. The installer resolves an exact Modrinth build for the chosen game version. It adds Mod Menu so Voxy's own in-game configuration can be opened when supported. Voxy is Fabric-focused (Quilt can attempt the Fabric build), requires Fabric API + Sodium and a GPU reporting OpenGL 4.6. Forge/NeoForge are not supported by the official Voxy build. A build missing for the selected Minecraft version is skipped rather than downloaded for another version.
+  - **Texture optimizer**: losslessly recompresses PNG IDAT data in directory resource packs and `.zip` / `.mcpack` packs, without changing decoded pixel data or ancillary PNG chunks. Originals are backed up under `.imzyy-backups/textures`; only files/archives that become smaller are replaced. This can reduce pack storage size, but does not reduce decoded GPU texture memory or promise additional FPS. Files over the safety limits are skipped.
+  - **IMPORT**: `.mrpack` (Modrinth format v1) importer: hash-verified parallel downloads from allow-listed hosts, zip-slip-safe overrides/client-overrides extraction. Create the matching instance (version + loader) in the launcher first, then pick its folder.
+  - **GitHub card**: repo/releases buttons and a "latest release" check (needs `IMZYY_GITHUB_REPO`, set automatically by CI).
+- Sodium/Embeddium need a suitable OpenGL 3.2+ path (Zink, Krypton or MobileGlues); they may fail on GL4ES. Switch the renderer in the existing renderer settings.
+- **Voxy is not a universal Android performance switch.** Its published requirements include OpenGL 4.6, Fabric API and Sodium. Many Android GPU/renderer stacks expose OpenGL ES rather than desktop OpenGL 4.6, so Voxy may refuse to activate or fail to load on a phone. The launcher checks version/loader availability but cannot certify GPU compatibility or guarantee lag-free / unlimited render distance.
+- The custom pointer/input event layer inside `MinecraftActivity` is upstream code and is not patched in this overlay. The new MOUSE page configures Minecraft's existing `options.txt` controls; in-game pointer behavior still depends on the engine's input implementation.
 
-## Integration architecture
+## GitHub
 
-The build script clones `AngelAuraMC/Amethyst-Android` at the configured `v3_openjdk` ref with its recursive Git submodules, then overlays the IMZYY Kotlin code into the upstream `app_pojavlauncher` application module.
+```bash
+gh auth login
+bash scripts/github-setup.sh imzyy-xl-launcher public --release v3.1.0
+```
 
-The startup chain remains:
+Pushing to `main` builds the APK as an artifact; pushing a `v*` tag also publishes a GitHub Release with the APK, build info and corresponding source.
 
-1. Amethyst `PojavApplication` initializes engine state.
-2. Amethyst `TestStorageActivity` performs its storage and asset bootstrap.
-3. IMZYY `MainActivity` displays the native dashboard and local account/backup screens.
-4. Amethyst `LauncherActivity` opens inside the same package for installation, profiles, version management, sign-in, runtime and renderer settings.
-5. Amethyst's game activity owns the game surface, JVM, native rendering, audio and native input pipeline.
+## Built-in performance profiles
 
-The original Amethyst bootstrap path is retained. The resulting APK is not a separate dashboard that launches a second launcher APK.
+The JVM/game settings page includes three working one-tap profiles. They change existing engine settings; they do not inject undocumented JVM arguments:
 
-## Included features
+| Profile | Heap limit policy | Render scale | GC |
+|---|---:|---:|---|
+| FPS | 45% of detected heap ceiling, capped at 2048 MB | 75% | G1GC |
+| Balanced | 58% of detected heap ceiling, capped at 3072 MB | 85% | G1GC |
+| Visual | 68% of detected heap ceiling, capped at 4096 MB | 100% | G1GC |
 
-- Single-APK integration with the real Amethyst Java runtime and native engine.
-- Native IMZYY dashboard, local account, encrypted `.imzyy` backup and restore.
-- Mod (`.jar`), resource-pack (`.zip`) and shader-pack (`.zip`) import into the active profile when the game folder is available.
-- Optional manual Storage Access Framework folder for file-library operations.
-- Engine readiness checks, device information, memory snapshot, controller preview, and launcher temporary-cache cleanup.
-- Java/runtime, renderer, Minecraft versions, profiles and actual launch delegated to Amethyst.
+The heap ceiling is derived from device RAM and the preset keeps memory headroom for Android, textures and native renderer allocations. These are starting points, not universal FPS guarantees. The best configuration depends on the phone's GPU/driver, RAM pressure, thermal state, Minecraft version, mods and renderer. Settings take effect on the next game launch. Renderer choices remain available in the existing renderer settings; the launcher does not force unsupported GPU flags.
+
+### Renderer starting points
+
+- **Zink**: try first on a modern Vulkan-capable GPU for Minecraft 1.17+ and shader-capable setups. The engine documents a device-dependent fallback path.
+- **Krypton**: a broad GLES 3.x path when Zink is unstable or unavailable.
+- **GL4ES**: compatibility path for older Minecraft versions and devices that cannot run Zink.
+- **MobileGlues**: another OpenGL/GLES path exposed by the upstream engine; verify compatibility with the exact game version and device.
+
+Do not stack multiple renderer drivers or copy random JVM flags from PC guides. Change one setting at a time and keep a working profile so regressions can be isolated.
+
+## Account and game files
+
+- The launcher application is free/open-source; Minecraft Java Edition still requires a valid Microsoft account with a Minecraft Java entitlement for official online play.
+- Microsoft sign-in and game-file downloads are handled by the upstream engine. This project does not bypass authentication or distribute Minecraft game files.
+- The upstream Android namespace/application ID are intentionally preserved for now because Microsoft OAuth callback registration may depend on that identity. The visible app branding and artifact name are IMZYY XL Launcher.
 
 ## Build with GitHub Actions
 
-1. Create a GitHub repository and upload the contents of this project ZIP to its root.
-2. Push to `main` or `master`.
-3. Open **Actions → Build IMZYY XL with embedded Amethyst Engine → Run workflow**.
-4. Download the `imzyy-xl-amethyst-engine-arm64-debug` artifact. It contains the APK and `BUILD-INFO.txt` with the upstream commit used.
-
-The workflow uses Temurin JDK 21, Gradle 9.6.1, Android command-line tools 22.0, Android SDK platform `platforms;android-37.0`, and NDK `27.3.13750724`. It also downloads the official `jre8-pojav` build artifact before compilation. ARM64 is selected by default to keep the APK smaller for modern ARM64 phones.
+1. Upload the contents of this ZIP to the root of a GitHub repository.
+2. Push to `main` or `master`, or run **Actions → Build IMZYY XL Launcher (ARM64)** manually.
+3. Download the artifact `IMZYY-XL-Launcher-ARM64-debug`.
+4. It contains the debug APK, build provenance and corresponding patched upstream source archive.
 
 ## Build locally
 
-Requirements: Git, Python 3, JDK 21, Gradle 9.6.1 (or the upstream wrapper), Android command-line tools, Android SDK platform `37.0`, NDK `27.3.13750724`, and network access to GitHub/Maven/Google repositories.
-
-```bash
-# Fetch Amethyst and its native submodules
-bash scripts/build-amethyst.sh fetch
-
-# Download the official `jre8-pojav` artifact from
-# AngelAuraMC/angelauramc-openjdk-build (branch `buildjre8`)
-# and extract it into:
-# .build/Amethyst-Android/app_pojavlauncher/src/main/assets/components/jre/
-
-# Overlay IMZYY and build the integrated APK
-bash scripts/build-amethyst.sh build
-```
-
-The build validates that the APK contains ARM64 native libraries and the Amethyst JRE bootstrap files. Output:
-
-```text
-output/IMZYY-XL-Amethyst-Engine-debug.apk
-```
-
-Run the offline integration test before a full build:
+Requirements: Git, Python 3, JDK 17, Android SDK platform 36, Android build-tools 36.0.0, NDK 27.0.12077973, CMake 3.22.1 and network access.
 
 ```bash
 python3 scripts/test-integration.py
+bash scripts/build-imzyy.sh all
 ```
 
-Build options:
+Output:
 
-```bash
-# Another upstream ref, after checking compatibility
-AMETHYST_REF=v3_openjdk bash scripts/build-amethyst.sh
-
-# All supported upstream ABIs, producing a larger APK
-IMZYY_ABI_FILTER=all bash scripts/build-amethyst.sh
+```text
+output/IMZYY-XL-Launcher-arm64-debug.apk
+output/BUILD-INFO.txt
+output/IMZYY-XL-Launcher-corresponding-source.tar.gz
 ```
 
-## Performance and compatibility notes
+The build downloads FlameLauncher-Android, applies the IMZYY identity/UI/performance patch and compiles one ARM64 Android APK. The exact upstream commit is recorded in `BUILD-INFO.txt`. For reproducible releases, pin `IMZYY_ENGINE_REF` to a reviewed commit or tag before publishing.
 
-- The default APK is ARM64-only. Use `IMZYY_ABI_FILTER=all` for broader ABI coverage.
-- Actual performance depends on the device GPU/driver, Android build, Minecraft version, Java runtime, renderer, mods, render distance and thermal state.
-- Use Amethyst's renderer and game-profile settings for real Minecraft tuning. IMZYY does not set unsupported GPU flags or claim to force additional FPS.
-- The cache action clears only the app's temporary cache directory. It is not a RAM booster and does not clear other apps' data.
-- Mod/pack import checks file extension and destination, not the safety or compatibility of file contents. Use files from sources you trust and match them to the selected Minecraft version/mod loader.
-- This authoring environment does not have the Android SDK/Gradle build toolchain or the full Amethyst source tree, so it cannot produce or hardware-test the final APK here. Use the provided Actions workflow to compile the actual APK.
+## Validation and limitations
 
-## License and upstream notices
+- Offline integration tests validate the patcher, single-app activity presence, branding, UI profiles, typography, icon wiring, ARM64 target and idempotency.
+- The Android APK must still be built by GitHub Actions or on a machine with the Android SDK/NDK/Gradle toolchain. This environment cannot access GitHub or run the Android build, so no fresh APK or physical-device FPS result is claimed here.
+- Install and test on an ARM64 phone after CI passes. Check first launch, Microsoft sign-in, one vanilla instance, one mod-loader instance, renderer switching, touch input and resume after returning from the game.
 
-Amethyst is licensed under LGPL-3.0. Read `THIRD_PARTY_NOTICES.md`, retain required notices/source disclosures, and verify redistribution rights for every upstream component and asset before publishing an APK. This integration project does not grant rights to redistribute assets or libraries whose terms prohibit it.
+## Licensing
 
-Upstream engine: https://github.com/AngelAuraMC/Amethyst-Android
+The selected FlameLauncher source tree declares **AGPL-3.0** for the combined project because it includes GPL/AGPL components. Keep its `LICENSE` and `NOTICE`, publish the corresponding source and modifications when distributing the app, and review all upstream notices. Do not redistribute custom Vulkan drivers unless their separate terms allow it. Minecraft is a Mojang/Microsoft trademark; IMZYY XL is not affiliated with Mojang or Microsoft.
+
+Upstream engine: https://github.com/FlameLaunchers/FlameLauncher-Android

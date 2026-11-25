@@ -1,11 +1,7 @@
-# Android native source overlay
+# Android integration
 
-This directory contains the IMZYY Kotlin dashboard and integration sources copied into Amethyst's `app_pojavlauncher` module during the build. The UI is native Android; there is no web frontend or WebView screen.
+The final distributable is one APK named `IMZYY-XL-Launcher-arm64-debug.apk`. The main dashboard, login flow, version/profile management, renderer configuration, native JVM and Minecraft activity are packaged as one Android application. `MinecraftActivity` can run in an isolated Android process for memory/process separation, but it is still an activity in this same APK and not a separately installed launcher.
 
-Build the single integrated APK from the repository root with:
+The build fetches FlameLauncher-Android at `IMZYY_ENGINE_REF`, overlays IMZYY branding, typography and device-capped performance profiles, then builds `:app:assembleDebug`.
 
-```bash
-bash scripts/build-amethyst.sh
-```
-
-See the root `README.md` for the GitHub Actions build, SDK requirements, JRE bootstrap asset, and output location.
+Do not rename the Android application ID until Microsoft OAuth callback registration has been updated and verified.
