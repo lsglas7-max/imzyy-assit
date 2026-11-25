@@ -19,7 +19,7 @@ def main() -> int:
         (app / "src/main/res/mipmap-anydpi-v26").mkdir(parents=True)
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme").mkdir(parents=True)
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation").mkdir(parents=True, exist_ok=True)
-        (app / "build.gradle.kts").write_text('''plugins { id("com.android.application") }
+        (app / "build.gradle.kts").write_text('''plugins { alias(libs.plugins.android.application) }
 android { namespace = "kr.co.donghyun.flamelauncher"; defaultConfig { applicationId = "kr.co.donghyun.flamelauncher"; ndk { abiFilters += listOf("arm64-v8a") } } }
 ''')
         (root / "settings.gradle.kts").write_text('rootProject.name = "FlameLauncher"')

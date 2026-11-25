@@ -319,7 +319,14 @@ def validate_upstream(root: Path) -> None:
     app = root / "app"
     gradle = require_file(app / "build.gradle.kts")
     manifest = require_file(app / "src/main/AndroidManifest.xml")
-    if "com.android.application" not in gradle or "abiFilters" not in gradle or "arm64-v8a" not in gradle:
+    # Upstream sekarang memakai Gradle version-catalog alias, bukan literal plugin ID.
+    app_plugin_detected = (
+        "com.android.application" in gradle
+        or re.search(r"alias\s*\(\s*libs\.plugins\.android\.application\s*\)", gradle) is not None
+        or re.search(r"alias\s*\(\s*libs\.plugins\.androidApplication\s*\)", gradle) is not None
+    )
+    abi_configured = "abiFilters" in gradle and "arm64-v8a" in gradle
+    if not app_plugin_detected or not abi_configured:
         raise RuntimeError("Build upstream tidak sesuai: modul Android ARM64 tidak terdeteksi.")
     if "kr.co.donghyun.flamelauncher.presentation.MainActivity" not in manifest and 'android:name=".presentation.MainActivity"' not in manifest:
         raise RuntimeError("MainActivity upstream tidak ditemukan di manifest.")
