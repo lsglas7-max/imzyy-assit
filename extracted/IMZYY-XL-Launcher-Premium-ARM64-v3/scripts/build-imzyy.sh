@@ -31,7 +31,20 @@ build_engine() {
   [[ -x "$ENGINE_DIR/gradlew" ]] || { echo "Upstream Gradle wrapper missing." >&2; exit 4; }
   (
     cd "$ENGINE_DIR"
-    ./gradlew --no-daemon :app:assembleDebug
+    mkdir -p "$OUTPUT_DIR"
+    set +e
+    ./gradlew --no-daemon --console=plain :app:assembleDebug 2>&1 | tee "$OUTPUT_DIR/gradle.log"
+    status=${PIPESTATUS[0]}
+    set -e
+    if [[ "$status" -ne 0 ]]; then
+      {
+        echo "### Gradle build FAILED (exit $status) - penyebab utama:"
+        echo '```'
+        grep -E "^e: |^w: .*imzyy|error:|FAILED|What went wrong|Execution failed|Could not|Unresolved|AAPT|Manifest merger" -A4 "$OUTPUT_DIR/gradle.log" | head -80
+        echo '```'
+      } | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+      exit "$status"
+    fi
   )
   local apk
   apk="$(find "$ENGINE_DIR/app/build/outputs/apk/debug" -maxdepth 1 -type f -name '*.apk' -print -quit)"
