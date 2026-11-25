@@ -1,0 +1,12 @@
+IMZYY XL Launcher ARM64 build
+
+1. Upload the contents of this project ZIP to a GitHub repository root.
+2. Push to main/master or open Actions and run "Build IMZYY XL Launcher (ARM64)".
+3. Download artifact "IMZYY-XL-Launcher-ARM64-debug".
+
+Artifact contents:
+- IMZYY-XL-Launcher-arm64-debug.apk
+- BUILD-INFO.txt
+- IMZYY-XL-Launcher-corresponding-source.tar.gz
+
+This build produces one branded Android application. Its MinecraftActivity is part of the same APK; no extra launcher APK is installed. It fetches FlameLauncher-Android as the JVM/native engine source, applies the IMZYY XL UI and performance profiles, then compiles ARM64.
