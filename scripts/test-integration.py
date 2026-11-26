@@ -41,15 +41,15 @@ val FlameLight = Color(0xFF7CC9FF)
 val FlameDark = Color(0xFF0B4A8F)
 ''')
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text(
-            "class MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n}\n")
+            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
         (comp / "MinecraftSurface.kt").write_text(
-            "private const val DRAG_SLOP = 20f\nprivate const val LONG_PRESS_TIMEOUT = 500L\n"
+            "package kr.co.donghyun.flamelauncher.presentation.ui.components\n\nprivate const val DRAG_SLOP = 20f\nprivate const val LONG_PRESS_TIMEOUT = 500L\n"
             "internal fun minecraftTouchListener(activity: A, bufferSize: () -> IntArray): View.OnTouchListener = View.OnTouchListener { v, event ->\n"
             "    val buf = bufferSize()\n    true\n}\n")
         (comp / "GameControllerView.kt").write_text(
-            "class GameControllerView {\n    private val bgPaint = Color.argb(217, 26, 10, 20)\n"
+            "package kr.co.donghyun.flamelauncher.presentation.ui.components\n\nclass GameControllerView {\n    private val bgPaint = Color.argb(217, 26, 10, 20)\n"
             "    private val x = Color.argb(255, 233, 30, 140)\n    override fun onDraw(canvas: Canvas) {\n    }\n}\n")
         screen_dir = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen"
         screen_dir.mkdir(parents=True)
@@ -113,6 +113,8 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert 'Text("FPS", color = Color.Black' in settings_screen
         base_ui = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation"
         assert "ImzyyControls.lookSensitivity(this)" in (base_ui / "MinecraftActivity.kt").read_text()
+        assert "import id.imzyy.xl.ImzyyControls" in (base_ui / "ui/components/GameControllerView.kt").read_text()
+        assert "id.imzyy.xl.ImzyyControls." not in (base_ui / "ui/components/GameControllerView.kt").read_text()
         assert "internal var gameControllerView" in (base_ui / "MinecraftActivity.kt").read_text()
         surf = (base_ui / "ui/components/MinecraftSurface.kt").read_text()
         assert "ImzyyControls.dragSlop" in surf and "ImzyyControls.longPressMs" in surf
