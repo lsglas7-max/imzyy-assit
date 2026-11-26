@@ -248,7 +248,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         }
     }
 
-    fun setSmooth(on: Boolean) {
+    fun switchSmooth(on: Boolean) {
         smooth = on
         prefs.edit().putBoolean("smooth", on).apply()
         if (on) runJob {
@@ -489,8 +489,8 @@ private fun BoostTab(s: HubState) {
                     Text("Anti drop FPS & stutter", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text("Kunci FPS stabil, matikan vsync, ringankan update chunk & biome blend. Dipasang ulang otomatis setiap kamu tekan PLAY.", color = Ink.Sub, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Chip("AKTIF", s.smooth) { s.setSmooth(true) }
-                        Chip("MATI", !s.smooth) { s.setSmooth(false) }
+                        Chip("AKTIF", s.smooth) { s.switchSmooth(true) }
+                        Chip("MATI", !s.smooth) { s.switchSmooth(false) }
                     }
                 }
             }
