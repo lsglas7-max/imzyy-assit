@@ -87,11 +87,17 @@ class MainActivity {
             "    private fun fakeJvmArgs() {\n"
             "        val jvmSettings = JvmSettingsManager.load(this)\n"
             "        val metaJvmArgsRaw = emptyList<String>()\n"
-            "        val metaJvmArgs: Array<String> = metaJvmArgsRaw.map { arg -> arg\n"
+            "        val metaJvmArgs: Array<String> = metaJvmArgsRaw.map { arg ->\n"
+            "            if (arg.startsWith(\"-DignoreList=\")) {\n"
+            "                val needed = listOf(\"ForgeAutoRenamingTool\", \"BinaryPatcher\").filterNot { arg.endsWith(it) }\n"
+            "                if (needed.isNotEmpty()) arg + \",\" + needed.joinToString(\",\") else arg\n"
+            "            } else arg\n"
             "        }.toTypedArray()\n"
-            "// ── BootstrapLauncher 의 -DignoreList 에 LWJGL 들 추가 ──\n"
+            "// upstream moved this explanatory comment away from the array declaration\n"
+            "        val modernForgeArgs = emptyArray<String>()\n"
             "        val jvmArgs = emptyArray<String>() +\n"
             "                jvmSettings.toJvmArgArray() +\n"
+            "                modernForgeArgs +\n"
             "                metaJvmArgs\n"
             "        try {\n"
             "            launchJvm(jvmArgs)\n"
@@ -246,6 +252,8 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "imzyyLaunchSettings.toJvmArgArray(" in mc_activity
         assert "val imzyyMetaJvmArgs = metaJvmArgs.filterNot" in mc_activity
         assert mc_activity.count("imzyyMetaJvmArgs") >= 2 and "+\n                metaJvmArgs" not in mc_activity
+        assert "metaJvmArgsRaw.map { arg ->" in mc_activity
+        assert "val modernForgeArgs = emptyArray<String>()" in mc_activity
         assert "imzyyTotalRamMb <= 4608L -> 1280" in mc_activity
         assert 'catch (e: Throwable)' in mc_activity and 'MC 실행 예외:' in mc_activity
         assert "                    instanceDir," in mc_activity

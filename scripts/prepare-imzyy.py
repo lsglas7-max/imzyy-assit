@@ -741,20 +741,57 @@ def patch_launch_memory_and_errors(app: Path) -> None:
                 raise RuntimeError("Pemanggilan jvmSettings.toJvmArgArray berubah.")
             src = src.replace("jvmSettings.toJvmArgArray(", "imzyyLaunchSettings.toJvmArgArray(", 1)
 
+    # Do not depend on the adjacent Korean comment or exact whitespace. Upstream
+    # recently moved the comment and changed the map body while keeping the same
+    # `metaJvmArgsRaw.map { ... }.toTypedArray()` data flow.
     meta_marker = "// IMZYY: ignore metadata heap overrides"
     if meta_marker not in src:
-        end_anchor = '''        }.toTypedArray()
-// ── BootstrapLauncher 의 -DignoreList 에 LWJGL 들 추가 ──
-'''
-        if end_anchor not in src:
-            raise RuntimeError("Batas metaJvmArgs di MinecraftActivity.kt berubah.")
-        filtered = '''        }.toTypedArray()
-        // IMZYY: ignore metadata heap overrides
-        val imzyyMetaJvmArgs = metaJvmArgs.filterNot { it.startsWith("-Xmx") || it.startsWith("-XX:MaxHeapSize=") }.toTypedArray()
-// ── BootstrapLauncher 의 -DignoreList 에 LWJGL 들 추가 ──
-'''
-        src = src.replace(end_anchor, filtered, 1)
-        src = src.replace("+\n                metaJvmArgs\n", "+\n                imzyyMetaJvmArgs\n", 1)
+        decl_pattern = re.compile(
+            r"(?m)^(?P<indent>[ \t]*)val\s+metaJvmArgs\s*(?::\s*Array<String>)?\s*=\s*metaJvmArgsRaw\s*\.map\s*\{"
+        )
+        decls = list(decl_pattern.finditer(src))
+        if len(decls) != 1:
+            raise RuntimeError(
+                "Deklarasi metaJvmArgsRaw.map di MinecraftActivity.kt tidak ditemukan secara unik "
+                f"(ditemukan {len(decls)}). Pemeriksaan heap metadata tidak dipaksakan."
+            )
+        decl = decls[0]
+        typed_array = src.find(".toTypedArray()", decl.end())
+        if typed_array < 0 or typed_array - decl.end() > 30000:
+            raise RuntimeError("Akhir deklarasi metaJvmArgs tidak dikenali; heap metadata tidak diubah.")
+        line_end = src.find("\n", typed_array)
+        if line_end < 0:
+            line_end = len(src)
+        indent = decl.group("indent")
+        injected = (
+            f"\n{indent}{meta_marker}\n"
+            f"{indent}val imzyyMetaJvmArgs = metaJvmArgs.filterNot {{ "
+            f'it.startsWith("-Xmx") || it.startsWith("-XX:MaxHeapSize=") }}.toTypedArray()'
+        )
+        src = src[:line_end + 1] + injected + src[line_end + 1:]
+
+    # Replace only the final metadata-argument item in the JVM argument expression.
+    # Earlier reads (for example module-path discovery) must keep the unfiltered list.
+    if "imzyyMetaJvmArgs" not in src:
+        raise RuntimeError("Daftar metaJvmArgs hasil filter tidak terbentuk.")
+    if "imzyyMetaJvmArgs" not in src[src.find("val jvmArgs"):] :
+        args_start = re.search(r"(?m)^\s*val\s+jvmArgs\b[^\n]*=", src)
+        if not args_start:
+            raise RuntimeError("Deklarasi val jvmArgs tidak ditemukan di MinecraftActivity.kt.")
+        logs_end = src.find('Log.d("FLAME_LAUNCHER", "버전:', args_start.end())
+        if logs_end < 0:
+            logs_end = min(len(src), args_start.end() + 20000)
+        expression = src[args_start.end():logs_end]
+        final_items = list(re.finditer(r"(?m)^(?P<indent>[ \t]*)metaJvmArgs[ \t]*$", expression))
+        if len(final_items) != 1:
+            raise RuntimeError(
+                "Item metaJvmArgs final di ekspresi jvmArgs tidak ditemukan secara unik "
+                f"(ditemukan {len(final_items)})."
+            )
+        item = final_items[0]
+        absolute_start = args_start.end() + item.start()
+        absolute_end = args_start.end() + item.end()
+        src = src[:absolute_start] + item.group("indent") + "imzyyMetaJvmArgs" + src[absolute_end:]
 
     # Some failures are LinkageError/other Errors rather than Exception.
     if not re.search(r'(?m)^\s*} catch \(e: Throwable\) \{\n\s*Log\.e\("FLAME_LAUNCHER", "MC 실행 예외:', src):
