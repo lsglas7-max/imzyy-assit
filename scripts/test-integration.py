@@ -185,6 +185,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "                    instanceDir," in mc_activity
         assert "                    customGameDir," in mc_activity
         assert "Asset Minecraft belum siap" in mc_activity
+        assert 'coba lagi.\\n\\n" +' in mc_activity, "retry dialog must use escaped Kotlin newline sequences"
         assert 'setPositiveButton("COBA LAGI")' in mc_activity
         assert "imzyyAssetRepairCompleted = true" in mc_activity
         assert "else if (imzyyAssetRepairCompleted)" in mc_activity

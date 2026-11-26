@@ -640,7 +640,7 @@ def patch_asset_repair(app: Path) -> None:
 {indent}            android.app.AlertDialog.Builder(this@MinecraftActivity)
 {indent}                .setTitle("Asset Minecraft belum siap")
 {indent}                .setMessage(
-{indent}                    "Beberapa file game belum bisa dipulihkan. Periksa koneksi internet dan ruang penyimpanan, lalu coba lagi.\n\n" +
+{indent}                    "Beberapa file game belum bisa dipulihkan. Periksa koneksi internet dan ruang penyimpanan, lalu coba lagi.\\n\\n" +
 {indent}                        (e.message ?: e.javaClass.simpleName)
 {indent}                )
 {indent}                .setPositiveButton("COBA LAGI") {{ _, _ ->
