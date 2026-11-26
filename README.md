@@ -25,6 +25,7 @@ Lite is a build variant of the same project (`IMZYY_VARIANT=lite`, workflow `and
 - **Mods**: IMPORT accepts `.mrpack`, a single `.jar`, or a `.zip` that contains mods (jars are found at any depth and flattened into `mods/`; nothing else is extracted).
 - **Voxy** is an opt-in entry in the BOOST pack (Fabric + Sodium only, needs OpenGL 4.6; often unsupported on phones).
 - **Controls** are unchanged: KONTROL tab + the upstream button editor.
+- **Asset repair**: before the Minecraft JVM starts, the selected asset index is checked. Missing or wrong-sized objects are downloaded again from Mojang and SHA-1 verified; if repair fails, launch is stopped with an error instead of crashing later while rendering.
 - **Look**: animated shimmer title, pulsing PLAY button, drifting particles, monochrome palette.
 
 ## v3: monochrome UI + IMZYY Hub

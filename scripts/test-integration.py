@@ -42,7 +42,10 @@ val FlameLight = Color(0xFF7CC9FF)
 val FlameDark = Color(0xFF0B4A8F)
 ''')
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text(
-            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n}\n")
+            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n"
+            "    private fun fakeGlfwStart(surface: Surface) { if (!jvmStarted) { jvmStarted = true; setupAndLaunch(surface) } }\n"
+            "    private fun fakeSdlStart(surface: Surface) { if (jvmStarted) return; jvmStarted = true; setupAndLaunch(surface) }\n"
+            "    private fun setupAndLaunch(surface: Surface) {}\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
         (comp / "MinecraftSurface.kt").write_text(
@@ -160,10 +163,14 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         _inp = (hub_dir / "ImzyyInput.kt").read_text()
         assert "a.sendKeyPress(key = glfw, scancode = 0, action = (if (down) 1 else 0), mods = 0)" in _inp, _inp
         assert "internal fun sendKeyPress" in (base_ui / "MinecraftActivity.kt").read_text()
+        mc_activity = (base_ui / "MinecraftActivity.kt").read_text()
+        assert "ImzyyAssets.repair(applicationContext, assetIndex, versionId)" in mc_activity
+        assert mc_activity.count("prepareAssetsThenLaunch(surface)") == 2
+        assert "import id.imzyy.xl.ImzyyAssets" in mc_activity
         assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
         assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt"):
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt", "ImzyyAssets.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg
@@ -186,7 +193,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
     assert (ROOT / "scripts/build-imzyy.sh").is_file()
     assert not (ROOT / "scripts/build-amethyst.sh").exists()
     assert not (ROOT / "scripts/prepare-amethyst.py").exists()
-    print("IMZYY integration tests passed: single-app activity check, branding, premium typography, performance profiles, adaptive icon, idempotency, ARM64 and no Amethyst build path.")
+    print("IMZYY integration tests passed: asset repair hooks (GLFW + SDL), single-app activity check, branding, performance profiles, idempotency and ARM64.")
     return 0
 
 if __name__ == "__main__":

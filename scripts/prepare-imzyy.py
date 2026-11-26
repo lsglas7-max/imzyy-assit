@@ -586,6 +586,64 @@ def patch_runtime_hooks(app: Path) -> None:
     print("runtimes: on-demand JRE hooks applied")
 
 
+def patch_asset_repair(app: Path) -> None:
+    """Verify and restore missing Mojang asset objects before the game JVM starts."""
+    act = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt"
+    src = require_file(act)
+    src = _ensure_import(src, "id.imzyy.xl.ImzyyAssets")
+
+    old_call = "setupAndLaunch(surface)"
+    new_call = "prepareAssetsThenLaunch(surface)"
+    if src.count(new_call) != 2:
+        if src.count(old_call) != 2:
+            raise RuntimeError(
+                "Anchor pemanggilan setupAndLaunch tidak ditemukan dua kali; "
+                "jalur GLFW/SDL upstream mungkin berubah."
+            )
+        src = src.replace(old_call, new_call)
+
+    marker = "    private fun setupAndLaunch(surface: Surface) {"
+    wrapper = """    // IMZYY: repair missing Minecraft assets before starting the JVM/render thread.
+    private var imzyyAssetRepairStarted = false
+
+    private fun prepareAssetsThenLaunch(surface: Surface) {
+        if (imzyyAssetRepairStarted) return
+        imzyyAssetRepairStarted = true
+        Toast.makeText(this, "Memeriksa asset Minecraft…", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            try {
+                val repaired = withContext(Dispatchers.IO) {
+                    ImzyyAssets.repair(applicationContext, assetIndex, versionId)
+                }
+                if (repaired > 0) {
+                    Toast.makeText(
+                        this@MinecraftActivity,
+                        "$repaired asset Minecraft yang hilang berhasil dipulihkan.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                setupAndLaunch(surface)
+            } catch (e: Exception) {
+                Log.e("IMZYY_ASSETS", "Perbaikan asset gagal; Minecraft tidak dijalankan", e)
+                Toast.makeText(
+                    this@MinecraftActivity,
+                    "Asset Minecraft gagal dipulihkan: ${e.message ?: e.javaClass.simpleName}",
+                    Toast.LENGTH_LONG,
+                ).show()
+                finish()
+            }
+        }
+    }
+
+"""
+    if "private fun prepareAssetsThenLaunch(surface: Surface)" not in src:
+        if src.count(marker) != 1:
+            raise RuntimeError("Anchor setupAndLaunch(surface) tidak ditemukan untuk memasang asset repair.")
+        src = src.replace(marker, wrapper + marker)
+    act.write_text(src, encoding="utf-8")
+    print("assets: missing/corrupt Mojang objects verified and repaired before JVM startup")
+
+
 def patch_fps_text(app: Path) -> None:
     """The FPS chip is accent-filled; its label must be dark now that the accent is near-white."""
     path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/SettingsScreen.kt"
@@ -736,6 +794,7 @@ def main() -> int:
     runtimes = patch_lite(app, args.repo, args.runtimes_out) if args.variant == "lite" else "{}"
     install_hub(app, args.repo, args.version, args.variant, runtimes)
     patch_runtime_hooks(app)
+    patch_asset_repair(app)
     patch_input_sender(app)
     patch_root_branding(root)
     # Keep upstream Android namespace/applicationId intact until the Microsoft
