@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cleaner_label">IMZYY Cleaner</string>
+    <string name="cleaner_desc">Membantu menekan tombol konfirmasi pada dialog bersihkan cache bawaan Android, serta tombol Clear Cache dan Force Stop di halaman Info Aplikasi, atas permintaanmu dari panel Game Turbo. Progres tampil sebagai log di floating window. Tidak membaca atau menyimpan isi layar.</string>
+    <string name="cleaner_summary">Force Stop dan Clear Cache per aplikasi dari panel Game Turbo</string>
+</resources>
