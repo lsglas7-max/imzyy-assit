@@ -77,6 +77,8 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     var tab by mutableStateOf(0)
     var selectedId by mutableStateOf(prefs.getString("inst", "") ?: "")
     var ctlTick by mutableStateOf(0)
+    /** Pad button that currently receives extra keys from the "Tambah tombol" chips (combo). Empty = add a new button. */
+    var comboId by mutableStateOf("")
     var rtTick by mutableStateOf(0)
     var busy by mutableStateOf(false)
     var progress by mutableStateOf(0f)
@@ -667,6 +669,7 @@ private fun SliderRow(title: String, valueText: String, value: Float, min: Float
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ControlsTab(s: HubState) {
     val tick = s.ctlTick // recompose on change
@@ -720,7 +723,7 @@ private fun ControlsTab(s: HubState) {
             Reveal(4) {
                 Panel {
                     Text("Tombol IMZYY (di dalam game)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("WASD, klik kiri/kanan, dan tombol lain muncul di game, termasuk sebelum membuat world. Di dalam game ketuk tombol PAD (atas) lalu geser tombol untuk mengatur posisi, ketuk SIMPAN.", color = Ink.Sub, fontSize = 12.sp)
+                    Text("WASD, klik kiri/kanan, dan tombol lain muncul di game, termasuk sebelum membuat world. Di dalam game ketuk tombol PAD (atas): geser tombol untuk mengatur posisi, ketuk tombol untuk ganti mode / sembunyikan / gabung tombol lain, lalu ketuk SIMPAN. Tombol MODS (atas) membuka pencarian & pemasangan modpack.", color = Ink.Sub, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip("AKTIF", ImzyyPad.enabled) { ImzyyPad.enabled = true; ImzyyPad.save(s.ctx) }
                         Chip("MATI", !ImzyyPad.enabled) { ImzyyPad.enabled = false; ImzyyPad.save(s.ctx) }
@@ -739,11 +742,23 @@ private fun ControlsTab(s: HubState) {
                 Panel {
                     Text("Daftar tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text("Ketuk mode untuk mengganti: TEKAN (aktif selagi ditekan), TAHAN (ketuk sekali = terkunci, ketuk lagi = lepas), KLIK / TAHAN LAMA (ketuk = klik, tahan lama = terkunci).", color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("SEMBUNYI SEMUA", false, compact = true) { ImzyyPad.setAllHidden(s.ctx, true) }
+                        Chip("TAMPILKAN SEMUA", false, compact = true) { ImzyyPad.setAllHidden(s.ctx, false) }
+                    }
                     for (b in ImzyyPad.buttons.toList()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(b.key, color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                            Chip(ImzyyPad.modeName(b.mode), true, compact = true) { ImzyyPad.cycleMode(s.ctx, b.id) }
-                            Chip("HAPUS", false, compact = true) { ImzyyPad.remove(s.ctx, b.id) }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                b.key.replace("+", " + ") + if (b.hidden) "   (disembunyikan)" else "",
+                                color = if (b.hidden) Ink.Sub else Ink.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Chip(ImzyyPad.modeName(b.mode), true, compact = true) { ImzyyPad.cycleMode(s.ctx, b.id) }
+                                Chip(if (b.hidden) "TAMPILKAN" else "SEMBUNYIKAN", b.hidden, compact = true) { ImzyyPad.toggleHidden(s.ctx, b.id) }
+                                Chip("+ GABUNG", s.comboId == b.id, compact = true) { s.comboId = if (s.comboId == b.id) "" else b.id }
+                                if (b.key.contains("+")) Chip("HAPUS GABUNGAN", false, compact = true) { ImzyyPad.clearCombo(s.ctx, b.id) }
+                                Chip("HAPUS", false, compact = true) { ImzyyPad.remove(s.ctx, b.id); if (s.comboId == b.id) s.comboId = "" }
+                            }
                         }
                     }
                 }
@@ -752,12 +767,20 @@ private fun ControlsTab(s: HubState) {
         item {
             Reveal(6) {
                 Panel {
-                    Text("Tambah tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    val target = ImzyyPad.buttons.firstOrNull { it.id == s.comboId }
+                    Text(if (target != null) "Gabungkan ke tombol ${target.label}" else "Tambah tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        if (target != null) "Ketuk tombol di bawah untuk menambah ke kombinasi (ditekan bersamaan), mis. CTRL + C. Ketuk SELESAI jika sudah." else "Ketuk satu tombol untuk membuat tombol baru. Untuk kombinasi, pilih \"+ GABUNG\" pada tombol di atas.",
+                        color = Ink.Sub, fontSize = 12.sp,
+                    )
+                    if (target != null) Chip("SELESAI", true, compact = true) { s.comboId = "" }
                     Row(
                         Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        for (k in PadKeys.order) Chip(k, false, compact = true) { ImzyyPad.add(s.ctx, k) }
+                        for (k in PadKeys.order) Chip(k, false, compact = true) {
+                            if (target != null) ImzyyPad.addKeyTo(s.ctx, target.id, k) else ImzyyPad.add(s.ctx, k)
+                        }
                     }
                     InkButton("RESET TOMBOL IMZYY", { ImzyyPad.reset(s.ctx) }, filled = false)
                 }

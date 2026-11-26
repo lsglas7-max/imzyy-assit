@@ -117,3 +117,10 @@ The build downloads FlameLauncher-Android, applies the IMZYY identity/UI/perform
 The selected FlameLauncher source tree declares **AGPL-3.0** for the combined project because it includes GPL/AGPL components. Keep its `LICENSE` and `NOTICE`, publish the corresponding source and modifications when distributing the app, and review all upstream notices. Do not redistribute custom Vulkan drivers unless their separate terms allow it. Minecraft is a Mojang/Microsoft trademark; IMZYY XL is not affiliated with Mojang or Microsoft.
 
 Upstream engine: https://github.com/FlameLaunchers/FlameLauncher-Android
+
+## In-game extras (v8)
+
+- **Asset repair**: every PLAY verifies the instance's Minecraft assets and re-downloads missing/truncated files; Home has a manual "PERIKSA & PERBAIKI ASSET" button.
+- **Pad**: tap PAD in-game, then tap a button to change its mode, hide/show it, or merge more keys into it (e.g. CTRL+C, pressed together). "+ TOMBOL" adds new buttons or combos, "DAFTAR / SEMBUNYI" hides buttons one by one or all at once. The same controls exist in Hub > KONTROL.
+- **MODS (in-game)**: search Modrinth modpacks that match the running instance (Minecraft version + loader), install them with hash verification, then use RELOAD TEKSTUR (F3+T), RELOAD CHUNK (F3+A) or RESTART GAME. New mod jars only load after RESTART GAME + PLAY; reload only refreshes resources and rendering.
+- The upstream "Release Notes" menu and its GitHub update popup are removed at patch time.

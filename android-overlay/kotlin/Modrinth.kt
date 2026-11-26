@@ -87,4 +87,55 @@ object Modrinth {
             size = file.optLong("size"),
         )
     }
+
+    /** Modpacks (.mrpack) for one Minecraft version + loader (loader may be empty). */
+    fun searchPacks(query: String, gameVersion: String, loader: String): List<Hit> {
+        val facets = JSONArray()
+            .put(JSONArray().put("project_type:modpack"))
+            .put(JSONArray().put("versions:$gameVersion"))
+        if (loader.isNotEmpty()) facets.put(JSONArray().put("categories:$loader"))
+        val url = "$API/search?query=${enc(query)}&limit=25&index=${if (query.isEmpty()) "downloads" else "relevance"}&facets=${enc(facets.toString())}"
+        val hits = org.json.JSONObject(Net.getText(url)).getJSONArray("hits")
+        val out = ArrayList<Hit>()
+        for (i in 0 until hits.length()) {
+            val h = hits.getJSONObject(i)
+            out.add(Hit(h.getString("project_id"), h.optString("slug"), h.optString("title"), h.optString("description"), h.optLong("downloads")))
+        }
+        return out
+    }
+
+    /** Newest .mrpack of a modpack project for this Minecraft version + loader (prefers release builds). */
+    fun resolvePack(idOrSlug: String, gameVersion: String, loader: String): ModFile? {
+        val loaders = if (loader.isNotEmpty()) "loaders=${enc("[\"$loader\"]")}&" else ""
+        val url = "$API/project/${enc(idOrSlug)}/version?${loaders}game_versions=${enc("[\"$gameVersion\"]")}"
+        val arr = try {
+            JSONArray(Net.getText(url))
+        } catch (e: HttpFailure) {
+            if (e.code == 404) return null else throw e
+        }
+        if (arr.length() == 0) return null
+        var pick = arr.getJSONObject(0)
+        for (i in 0 until arr.length()) {
+            val v = arr.getJSONObject(i)
+            if (v.optString("version_type") == "release") { pick = v; break }
+        }
+        val files = pick.getJSONArray("files")
+        var file: org.json.JSONObject? = null
+        for (i in 0 until files.length()) {
+            val f = files.getJSONObject(i)
+            if (f.getString("filename").endsWith(".mrpack") && (file == null || f.optBoolean("primary"))) file = f
+        }
+        val chosen = file ?: return null
+        val hashes = chosen.optJSONObject("hashes")
+        return ModFile(
+            projectId = pick.getString("project_id"),
+            slug = idOrSlug,
+            filename = chosen.getString("filename"),
+            url = chosen.getString("url"),
+            sha512 = hashes?.optString("sha512")?.ifEmpty { null },
+            sha1 = hashes?.optString("sha1")?.ifEmpty { null },
+            requiredProjects = emptyList(),
+            size = chosen.optLong("size"),
+        )
+    }
 }

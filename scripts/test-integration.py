@@ -58,7 +58,12 @@ val FlameDark = Color(0xFF0B4A8F)
         (screen_dir / "MainScreen.kt").write_text('''val compact = "Flame"; val full = "FlameLauncher"
 val topbar = Modifier.height(52.dp).background(BgSurface)
 val title = "FlameLauncher", color = TextPrimary, fontSize = 14.sp
+        MainSection.entries.forEach { section ->
+            SectionRow(section = section)
+        }
 ''')
+        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MainActivity.kt").write_text(
+            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MainActivity {\n    fun check() {\n        val release = GithubUpdateChecker.fetchUpdate(BuildConfig.VERSION_NAME)\n    }\n}\n")
         (screen_dir / "SettingsScreen.kt").write_text('''package kr.co.donghyun.flamelauncher.presentation.ui.screen
         Column(
             modifier = Modifier
@@ -117,6 +122,9 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         main_screen = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/MainScreen.kt").read_text()
         assert '"IMZYY"' in main_screen and '"IMZYY XL"' in main_screen
         assert ".height(58.dp)" in main_screen and "fontSize = 16.sp" in main_screen
+        assert "MainSection.entries.filter { it != MainSection.NOTES }.forEach" in main_screen, "release notes menu must be hidden"
+        main_act = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MainActivity.kt").read_text()
+        assert "GithubUpdateChecker.fetchUpdate" not in main_act and "val release: GithubRelease? = emptyList<GithubRelease>().firstOrNull()" in main_act
         settings_screen = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/SettingsScreen.kt").read_text()
         assert "ImzyyPerformanceProfiles(" in settings_screen
         assert 'maxHeapMb = performanceHeap' in settings_screen

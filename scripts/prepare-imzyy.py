@@ -586,6 +586,32 @@ def patch_runtime_hooks(app: Path) -> None:
     print("runtimes: on-demand JRE hooks applied")
 
 
+def patch_hide_release_notes(app: Path) -> None:
+    """Remove the upstream "Release Notes / latest release" side-menu entry and the GitHub update popup
+    (it pointed at the upstream repository and made a network call on every launch). Idempotent."""
+    base = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation"
+    main_screen = base / "ui/screen/MainScreen.kt"
+    src = require_file(main_screen)
+    src = _replace_once(
+        src,
+        "MainSection.entries.forEach { section ->",
+        "MainSection.entries.filter { it != MainSection.NOTES }.forEach { section ->",
+        "hide release notes menu",
+    )
+    main_screen.write_text(src, encoding="utf-8")
+
+    main_activity = base / "MainActivity.kt"
+    src = require_file(main_activity)
+    src = _replace_once(
+        src,
+        "val release = GithubUpdateChecker.fetchUpdate(BuildConfig.VERSION_NAME)",
+        "val release: GithubRelease? = emptyList<GithubRelease>().firstOrNull() // IMZYY: upstream update check disabled",
+        "disable upstream update popup",
+    )
+    main_activity.write_text(src, encoding="utf-8")
+    print("release notes: side-menu entry hidden, upstream update popup disabled")
+
+
 def patch_fps_text(app: Path) -> None:
     """The FPS chip is accent-filled; its label must be dark now that the accent is near-white."""
     path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/SettingsScreen.kt"
@@ -733,6 +759,7 @@ def main() -> int:
     patch_contrast(app)
     patch_fps_text(app)
     patch_controls(app)
+    patch_hide_release_notes(app)
     runtimes = patch_lite(app, args.repo, args.runtimes_out) if args.variant == "lite" else "{}"
     install_hub(app, args.repo, args.version, args.variant, runtimes)
     patch_runtime_hooks(app)
