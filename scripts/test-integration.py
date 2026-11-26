@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the IMZYY UI/performance overlay against an upstream-shaped fixture."""
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
@@ -98,9 +99,12 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         _shutil.copytree(root, full_root)
         rt_out = Path(str(root) + "-runtimes")
         lite_args = ["--engine-dir", str(root), "--repo", "owner/imzyy", "--variant", "lite", "--runtimes-out", str(rt_out)]
-        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True)
-        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True)
-        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(full_root), "--repo", "owner/imzyy"], check=True)
+        # CI exports IMZYY_VARIANT=lite for the whole job, so the test must never inherit it:
+        # every call pins --variant explicitly and runs with a clean environment.
+        clean_env = {k: v for k, v in os.environ.items() if not k.startswith("IMZYY_")}
+        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True, env=clean_env)
+        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True, env=clean_env)
+        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(full_root), "--repo", "owner/imzyy", "--variant", "full"], check=True, env=clean_env)
         strings = ET.parse(app / "src/main/res/values/strings.xml").getroot()
         assert strings.find("string").text == "IMZYY XL Launcher"
         for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
@@ -152,6 +156,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "ImzyyRuntimes.installed(context, it)" in preparer and "ImzyyRuntimes.ensure(context, requestedMajor)" in preparer
         assert "import id.imzyy.xl.ImzyyRuntimes" in preparer and preparer.count("ImzyyRuntimes.ensure") == 1
         hub_dir = app / "src/main/java/id/imzyy/xl"
+        assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
         for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()

@@ -250,7 +250,24 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /** Lite: first launch of each instance gets the lightweight options.txt profile once
+     *  (original is backed up; later changes by the user are never overwritten). */
+    private fun liteAutoTune() {
+        if (ImzyyConfig.VARIANT != "lite") return
+        val m = meta ?: return
+        val key = "lite_tuned_" + m.id
+        if (prefs.getBoolean(key, false)) return
+        try {
+            FpsTuner.apply(InstanceManager.instanceDir(ctx, m.id), FpsTuner.Profile.SAVER)
+            prefs.edit().putBoolean(key, true).apply()
+            say("✓ Lite: profil HEMAT FPS dipasang otomatis untuk instance ini")
+        } catch (e: Exception) {
+            say("Lite auto-tune dilewati: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
     fun play() {
+        liteAutoTune()
         ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
     }
 }
