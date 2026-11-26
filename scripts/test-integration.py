@@ -45,6 +45,7 @@ val FlameDark = Color(0xFF0B4A8F)
             "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n"
             "    private fun fakeGlfwStart(surface: Surface) { if (!jvmStarted) { jvmStarted = true; setupAndLaunch(surface) } }\n"
             "    private fun fakeSdlStart(surface: Surface) { if (jvmStarted) return; jvmStarted = true; setupAndLaunch(surface) }\n"
+            "    private fun fakeRetryStart(surface: Surface) { setupAndLaunch(surface) }\n"
             "    private fun setupAndLaunch(surface: Surface) {}\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
@@ -165,8 +166,12 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "internal fun sendKeyPress" in (base_ui / "MinecraftActivity.kt").read_text()
         mc_activity = (base_ui / "MinecraftActivity.kt").read_text()
         assert "ImzyyAssets.repair(applicationContext, assetIndex, versionId)" in mc_activity
-        assert mc_activity.count("prepareAssetsThenLaunch(surface)") == 2
+        assert "private fun setupAndLaunch(surface: Surface)" in mc_activity
+        assert "private fun setupAndLaunchAfterAssetRepair(surface: Surface)" in mc_activity
+        assert mc_activity.count("setupAndLaunchAfterAssetRepair(surface)") == 1
+        assert mc_activity.count("setupAndLaunch(surface)") == 3  # three independent launch paths
         assert "import id.imzyy.xl.ImzyyAssets" in mc_activity
+        assert "import kotlinx.coroutines.withContext" in mc_activity
         assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
         assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()

@@ -587,61 +587,89 @@ def patch_runtime_hooks(app: Path) -> None:
 
 
 def patch_asset_repair(app: Path) -> None:
-    """Verify and restore missing Mojang asset objects before the game JVM starts."""
+    # Hook the launch method itself instead of counting call sites. Upstream has changed
+    # the number and arrangement of GLFW/SDL launch paths over time; all routes that
+    # reach setupAndLaunch pass through this wrapper.
     act = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt"
     src = require_file(act)
-    src = _ensure_import(src, "id.imzyy.xl.ImzyyAssets")
+    wrapper_name = "setupAndLaunchAfterAssetRepair"
+    marker = "// IMZYY: asset repair wrapper"
 
-    old_call = "setupAndLaunch(surface)"
-    new_call = "prepareAssetsThenLaunch(surface)"
-    if src.count(new_call) != 2:
-        if src.count(old_call) != 2:
+    if marker not in src:
+        pattern = re.compile(
+            r"(?m)^(?P<indent>[ \t]*)(?P<mods>(?:(?:private|internal|protected|open|final|override)\s+)*)"
+            r"fun\s+setupAndLaunch\s*\(\s*surface\s*:\s*Surface\s*\)\s*(?::\s*Unit\s*)?\{"
+        )
+        matches = list(pattern.finditer(src))
+        if len(matches) != 1:
+            nearby = sorted(set(re.findall(r"\bfun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", src)))
             raise RuntimeError(
-                "Anchor pemanggilan setupAndLaunch tidak ditemukan dua kali; "
-                "jalur GLFW/SDL upstream mungkin berubah."
+                "Fungsi setupAndLaunch(surface: Surface) tidak ditemukan secara unik "
+                f"di MinecraftActivity.kt (ditemukan {len(matches)}). "
+                f"Fungsi yang tersedia: {', '.join(nearby[:30]) or '(tidak terbaca)'}. "
+                "Periksa artifact upstream-snippets sebelum mengubah anchor lagi."
             )
-        src = src.replace(old_call, new_call)
 
-    marker = "    private fun setupAndLaunch(surface: Surface) {"
-    wrapper = """    // IMZYY: repair missing Minecraft assets before starting the JVM/render thread.
-    private var imzyyAssetRepairStarted = false
+        match = matches[0]
+        indent = match.group("indent")
+        mods = match.group("mods")
+        original_decl = match.group(0)
+        renamed_decl = re.sub(r"\bsetupAndLaunch\b", wrapper_name, original_decl, count=1)
+        wrapper = f'''{indent}{marker}: verify and restore Mojang assets before JVM startup.
+{indent}private var imzyyAssetRepairStarted = false
 
-    private fun prepareAssetsThenLaunch(surface: Surface) {
-        if (imzyyAssetRepairStarted) return
-        imzyyAssetRepairStarted = true
-        Toast.makeText(this, "Memeriksa asset Minecraft…", Toast.LENGTH_SHORT).show()
-        lifecycleScope.launch {
-            try {
-                val repaired = withContext(Dispatchers.IO) {
-                    ImzyyAssets.repair(applicationContext, assetIndex, versionId)
-                }
-                if (repaired > 0) {
-                    Toast.makeText(
-                        this@MinecraftActivity,
-                        "$repaired asset Minecraft yang hilang berhasil dipulihkan.",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-                setupAndLaunch(surface)
-            } catch (e: Exception) {
-                Log.e("IMZYY_ASSETS", "Perbaikan asset gagal; Minecraft tidak dijalankan", e)
-                Toast.makeText(
-                    this@MinecraftActivity,
-                    "Asset Minecraft gagal dipulihkan: ${e.message ?: e.javaClass.simpleName}",
-                    Toast.LENGTH_LONG,
-                ).show()
-                finish()
-            }
-        }
-    }
+{indent}{mods}fun setupAndLaunch(surface: Surface) {{
+{indent}    if (imzyyAssetRepairStarted) return
+{indent}    imzyyAssetRepairStarted = true
+{indent}    Toast.makeText(this, "Memeriksa asset Minecraft…", Toast.LENGTH_SHORT).show()
+{indent}    lifecycleScope.launch {{
+{indent}        try {{
+{indent}            val repaired = withContext(Dispatchers.IO) {{
+{indent}                ImzyyAssets.repair(applicationContext, assetIndex, versionId)
+{indent}            }}
+{indent}            if (repaired > 0) {{
+{indent}                Toast.makeText(
+{indent}                    this@MinecraftActivity,
+{indent}                    "$repaired asset Minecraft yang hilang berhasil dipulihkan.",
+{indent}                    Toast.LENGTH_LONG,
+{indent}                ).show()
+{indent}            }}
+{indent}            {wrapper_name}(surface)
+{indent}        }} catch (e: Exception) {{
+{indent}            Log.e("IMZYY_ASSETS", "Perbaikan asset gagal; Minecraft tidak dijalankan", e)
+{indent}            Toast.makeText(
+{indent}                this@MinecraftActivity,
+{indent}                "Asset Minecraft gagal dipulihkan: ${{e.message ?: e.javaClass.simpleName}}",
+{indent}                Toast.LENGTH_LONG,
+{indent}            ).show()
+{indent}            finish()
+{indent}        }}
+{indent}    }}
+{indent}}}
 
-"""
-    if "private fun prepareAssetsThenLaunch(surface: Surface)" not in src:
-        if src.count(marker) != 1:
-            raise RuntimeError("Anchor setupAndLaunch(surface) tidak ditemukan untuk memasang asset repair.")
-        src = src.replace(marker, wrapper + marker)
+'''
+        src = src[:match.start()] + wrapper + renamed_decl + src[match.end():]
+
+    for fqcn in (
+        "id.imzyy.xl.ImzyyAssets",
+        "android.util.Log",
+        "android.widget.Toast",
+        "androidx.lifecycle.lifecycleScope",
+        "kotlinx.coroutines.Dispatchers",
+        "kotlinx.coroutines.launch",
+        "kotlinx.coroutines.withContext",
+    ):
+        src = _ensure_import(src, fqcn)
+
+    if marker not in src or "setupAndLaunchAfterAssetRepair(surface)" not in src:
+        raise RuntimeError("Wrapper asset repair tidak terbentuk atau tidak meneruskan peluncuran.")
+    if len(re.findall(r"(?m)^\s*(?:(?:private|internal|protected)\s+)?fun\s+setupAndLaunch\s*\(surface:\s*Surface\)", src)) != 1:
+        raise RuntimeError("Wrapper setupAndLaunch tidak terbentuk tepat satu kali.")
+    if len(re.findall(r"(?m)^\s*(?:(?:private|internal|protected)\s+)?fun\s+setupAndLaunchAfterAssetRepair\s*\(surface:\s*Surface\)", src)) != 1:
+        raise RuntimeError("Fungsi peluncur asli tidak berhasil dipertahankan tepat satu kali.")
+
     act.write_text(src, encoding="utf-8")
-    print("assets: missing/corrupt Mojang objects verified and repaired before JVM startup")
+    print("assets: launch-method wrapper verifies and repairs missing/corrupt Mojang objects before JVM startup")
 
 
 def patch_fps_text(app: Path) -> None:
