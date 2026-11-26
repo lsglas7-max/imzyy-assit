@@ -333,6 +333,16 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
     return source.replace(old, new)
 
 
+def _ensure_import(source: str, fqcn: str) -> str:
+    line = f"import {fqcn}"
+    if line in source:
+        return source
+    match = re.search(r"^package [^\n]+\n", source, re.MULTILINE)
+    if not match:
+        raise RuntimeError("Deklarasi package tidak ditemukan untuk menambah import")
+    return source[: match.end()] + "\n" + line + "\n" + source[match.end():]
+
+
 def patch_controls(app: Path) -> None:
     """Hook IMZYY controls (look sensitivity, touch slop/long-press, virtual mouse + cursor overlay)
     into the upstream game input code and recolor the on-screen buttons to monochrome."""
@@ -343,7 +353,7 @@ def patch_controls(app: Path) -> None:
     src = _replace_once(
         src,
         "    internal val MOUSE_SENSITIVITY = 1.5f",
-        "    internal val MOUSE_SENSITIVITY: Float get() = id.imzyy.xl.ImzyyControls.lookSensitivity(this)",
+        "    internal val MOUSE_SENSITIVITY: Float get() = ImzyyControls.lookSensitivity(this)",
         "look sensitivity",
     )
     src = _replace_once(
@@ -352,6 +362,7 @@ def patch_controls(app: Path) -> None:
         "    internal var gameControllerView: GameControllerView? = null",
         "controller view visibility",
     )
+    src = _ensure_import(src, "id.imzyy.xl.ImzyyControls")
     activity.write_text(src, encoding="utf-8")
 
     surface = base / "ui/components/MinecraftSurface.kt"
@@ -359,21 +370,22 @@ def patch_controls(app: Path) -> None:
     src = _replace_once(
         src,
         "private const val DRAG_SLOP = 20f",
-        "private val DRAG_SLOP: Float get() = id.imzyy.xl.ImzyyControls.dragSlop",
+        "private val DRAG_SLOP: Float get() = ImzyyControls.dragSlop",
         "drag slop",
     )
     src = _replace_once(
         src,
         "private const val LONG_PRESS_TIMEOUT = 500L",
-        "private val LONG_PRESS_TIMEOUT: Long get() = id.imzyy.xl.ImzyyControls.longPressMs",
+        "private val LONG_PRESS_TIMEOUT: Long get() = ImzyyControls.longPressMs",
         "long press",
     )
     src = _replace_once(
         src,
         "    val buf = bufferSize()\n",
-        "    val buf = bufferSize()\n    if (id.imzyy.xl.ImzyyControls.handleTouchpad(activity, v, event, buf)) return@OnTouchListener true\n",
+        "    val buf = bufferSize()\n    if (ImzyyControls.handleTouchpad(activity, v, event, buf)) return@OnTouchListener true\n",
         "touchpad hook",
     )
+    src = _ensure_import(src, "id.imzyy.xl.ImzyyControls")
     surface.write_text(src, encoding="utf-8")
 
     controller = base / "ui/components/GameControllerView.kt"
@@ -381,7 +393,7 @@ def patch_controls(app: Path) -> None:
     src = _replace_once(
         src,
         "    override fun onDraw(canvas: Canvas) {\n",
-        "    override fun onDraw(canvas: Canvas) {\n        id.imzyy.xl.ImzyyControls.drawCursor(canvas, this, activity)\n",
+        "    override fun onDraw(canvas: Canvas) {\n        ImzyyControls.drawCursor(canvas, this, activity)\n",
         "cursor overlay",
     )
     for old, new in (
@@ -393,6 +405,7 @@ def patch_controls(app: Path) -> None:
         ("Color.argb(178, 255, 107, 181)", "Color.argb(210, 255, 255, 255)"),
     ):
         src = src.replace(old, new)
+    src = _ensure_import(src, "id.imzyy.xl.ImzyyControls")
     controller.write_text(src, encoding="utf-8")
     print("controls: look sensitivity, slop, long-press, touchpad + cursor hooks applied")
 
