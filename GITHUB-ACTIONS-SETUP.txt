@@ -1,12 +1,9 @@
-IMZYY XL Launcher v3 (ARM64)
+IMZYY XL Lite (ARM64)
 
-Fast path:
-  gh auth login
-  bash scripts/github-setup.sh imzyy-xl-launcher public --release v3.0.0
-
-Manual path:
-  1. Upload the contents of this ZIP to a GitHub repository root.
-  2. Push to main/master or run Actions > "Build IMZYY XL Launcher (ARM64)".
-  3. Download artifact "IMZYY-XL-Launcher-ARM64-debug", or open the Release created for a v* tag.
-
-The job prints the APK size in the run summary.
+1. Push this project to the ROOT of your GitHub repo (the folders .github, scripts, android-overlay must be at the root).
+2. Actions > "Build IMZYY XL LITE (ARM64)" runs on every push to main (or press Run workflow).
+3. When it is green:
+   - Download the artifact "IMZYY-XL-Lite-ARM64-debug" (zip containing the APK).
+   - A pre-release named "Java runtimes (auto)" (tag: runtimes) is created. Do NOT delete it: the app downloads Java 8/17/25 from it.
+4. The run summary shows "APK size".
+The full (big) build is manual only: Actions > "Build IMZYY XL Launcher (ARM64)" > Run workflow.

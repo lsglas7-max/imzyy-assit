@@ -3,13 +3,7 @@ name: Build IMZYY XL Launcher (ARM64)
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
     tags: [ 'v*' ]
-    paths:
-      - '**/scripts/**'
-      - '**/android/**'
-      - '**/android-overlay/**'
-      - '.github/workflows/android-debug.yml'
 
 permissions:
   contents: write   # needed only to publish a GitHub Release on v* tags
@@ -74,6 +68,14 @@ jobs:
       - name: Fetch open-source runtime and build IMZYY XL
         working-directory: ${{ steps.loc.outputs.dir }}
         run: bash scripts/build-imzyy.sh all
+
+      - name: Upload Gradle log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-log
+          path: ${{ steps.loc.outputs.dir }}/output/gradle.log
+          if-no-files-found: ignore
 
       - name: APK size report
         working-directory: ${{ steps.loc.outputs.dir }}

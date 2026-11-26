@@ -33,6 +33,19 @@ object Net {
         }
     }
 
+    /** Opens [url] (HTTPS, redirects followed) and hands the stream to [block]. */
+    fun stream(url: String, block: (java.io.InputStream) -> Unit) {
+        val c = open(url)
+        c.readTimeout = 60_000
+        try {
+            val code = c.responseCode
+            if (code !in 200..299) throw HttpFailure(code, url)
+            c.inputStream.use(block)
+        } finally {
+            c.disconnect()
+        }
+    }
+
     /** Downloads [url] to [dest]; the file is only kept when its hash matches. */
     fun download(url: String, dest: File, sha512: String?, sha1: String?, onBytes: (Long) -> Unit = {}) {
         require(sha512 != null || sha1 != null) { "File tanpa hash ditolak: ${dest.name}" }

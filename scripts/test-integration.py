@@ -75,13 +75,32 @@ val title = "FlameLauncher", color = TextPrimary, fontSize = 14.sp
         (screen_dir / "Buttons.kt").write_text('''Button(colors = ButtonDefaults.buttonColors(containerColor = Flame)) { Text("Go", color = Color.White) }
 Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("Stay", color = Color.White) }
 ''')
+        jre_pkg = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/util/minecraft"
+        jre_pkg.mkdir(parents=True, exist_ok=True)
+        (jre_pkg / "MinecraftJREPreparer.kt").write_text(
+            "package kr.co.donghyun.flamelauncher.presentation.util.minecraft\n\nclass MinecraftJREPreparer {\n"
+            "    companion object {\n        private fun resolveAvailableMajor(context: Context, requested: Int): Int {\n"
+            "            val order = linkedSetOf(requested, 25, 21, 17).toList()\n"
+            "            return order.firstOrNull { assetExists(context, \"jre/jre${it}.zip\") }\n                ?: throw Exception(\"none\")\n        }\n"
+            "        fun prepareJreMajorAndGetPath(context: Context, requestedMajor: Int, reasonForLog: String = \"\"): String {\n"
+            "            val major = resolveAvailableMajor(context, requestedMajor)\n            return \"\"\n        }\n    }\n}\n")
+        jre_assets = app / "src/main/assets/jre"
+        jre_assets.mkdir(parents=True, exist_ok=True)
+        for major in (8, 17, 21, 25):
+            (jre_assets / f"jre{major}.zip").write_bytes(b"PK-fake-%d" % major)
         (app / "src/main/res/drawable").mkdir(parents=True)
         (app / "src/main/res/drawable/img_logo.png").write_bytes(b"old-logo")
         for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
             (app / "src/main/res/mipmap-anydpi-v26" / name).write_text('''<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@color/black"/><foreground android:drawable="@mipmap/ic_launcher_foreground"/></adaptive-icon>''')
 
-        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(root), "--repo", "owner/imzyy"], check=True)
-        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(root), "--repo", "owner/imzyy"], check=True)
+        import shutil as _shutil
+        full_root = Path(str(root) + "-full")
+        _shutil.copytree(root, full_root)
+        rt_out = Path(str(root) + "-runtimes")
+        lite_args = ["--engine-dir", str(root), "--repo", "owner/imzyy", "--variant", "lite", "--runtimes-out", str(rt_out)]
+        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True)
+        subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True)
+        subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(full_root), "--repo", "owner/imzyy"], check=True)
         strings = ET.parse(app / "src/main/res/values/strings.xml").getroot()
         assert strings.find("string").text == "IMZYY XL Launcher"
         for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
@@ -121,8 +140,19 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "ImzyyControls.handleTouchpad(activity, v, event, buf)) return@OnTouchListener true" in surf
         gcv = (base_ui / "ui/components/GameControllerView.kt").read_text()
         assert "ImzyyControls.drawCursor(canvas, this, activity)" in gcv and "217, 26, 10, 20" not in gcv
+        jre_left = sorted(p.name for p in (app / "src/main/assets/jre").iterdir())
+        assert jre_left == ["jre21.zip"], jre_left
+        assert sorted(p.name for p in rt_out.iterdir()) == ["jre17.zip", "jre25.zip", "jre8.zip"]
+        full_jre = sorted(p.name for p in (full_root / "app/src/main/assets/jre").iterdir())
+        assert len(full_jre) == 4, full_jre
+        lite_cfg = (app / "src/main/java/id/imzyy/xl/ImzyyConfig.kt").read_text()
+        assert 'VARIANT = "lite"' in lite_cfg and "jre17" in lite_cfg and "sha256" in lite_cfg, lite_cfg
+        assert 'VARIANT = "full"' in (full_root / "app/src/main/java/id/imzyy/xl/ImzyyConfig.kt").read_text()
+        preparer = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/util/minecraft/MinecraftJREPreparer.kt").read_text()
+        assert "ImzyyRuntimes.installed(context, it)" in preparer and "ImzyyRuntimes.ensure(context, requestedMajor)" in preparer
+        assert "import id.imzyy.xl.ImzyyRuntimes" in preparer and preparer.count("ImzyyRuntimes.ensure") == 1
         hub_dir = app / "src/main/java/id/imzyy/xl"
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt"):
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg

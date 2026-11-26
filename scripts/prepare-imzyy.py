@@ -410,6 +410,65 @@ def patch_controls(app: Path) -> None:
     print("controls: look sensitivity, slop, long-press, touchpad + cursor hooks applied")
 
 
+def patch_lite(app: Path, repo: str, runtimes_out: Path | None) -> str:
+    """Lite variant: keep only JRE 21 inside the APK. The other runtimes are moved to
+    `runtimes_out` (published by CI as release assets) and downloaded on demand by the app.
+    Returns the JSON manifest {jreN: {size, sha256}} that is baked into ImzyyConfig."""
+    import hashlib
+    import json
+    import shutil
+
+    jre_dir = app / "src/main/assets/jre"
+    manifest_file = app / "imzyy-runtimes.json"
+    if not repo:
+        print("lite: IMZYY_GITHUB_REPO kosong -> runtime TIDAK dibuang (tidak ada tempat unduh)")
+        return "{}"
+    strip = (8, 17, 25)
+    manifest: dict = {}
+    for major in strip:
+        zip_path = jre_dir / f"jre{major}.zip"
+        if not zip_path.is_file():
+            continue
+        digest = hashlib.sha256()
+        with zip_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+        manifest[f"jre{major}"] = {"size": zip_path.stat().st_size, "sha256": digest.hexdigest()}
+        if runtimes_out is not None:
+            runtimes_out.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(zip_path, runtimes_out / zip_path.name)
+        zip_path.unlink()
+    if manifest:
+        manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    elif manifest_file.is_file():
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    if not (jre_dir / "jre21.zip").is_file():
+        raise RuntimeError("lite: jre21.zip tidak ada; varian Lite butuh Java 21 bawaan")
+    print(f"lite: runtimes diunduh-saat-butuh = {sorted(manifest)}; bawaan = jre21")
+    return json.dumps(manifest, separators=(",", ":"))
+
+
+def patch_runtime_hooks(app: Path) -> None:
+    """On-demand JRE: let MinecraftJREPreparer use downloaded runtimes and try a download first."""
+    path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/util/minecraft/MinecraftJREPreparer.kt"
+    src = require_file(path)
+    src = _replace_once(
+        src,
+        'return order.firstOrNull { assetExists(context, "jre/jre${it}.zip") }',
+        'return order.firstOrNull { assetExists(context, "jre/jre${it}.zip") || ImzyyRuntimes.installed(context, it) }',
+        "runtime resolve",
+    )
+    src = _replace_once(
+        src,
+        "            val major = resolveAvailableMajor(context, requestedMajor)\n",
+        "            try { ImzyyRuntimes.ensure(context, requestedMajor) } catch (e: Exception) { Log.w(TAG, \"Runtime download gagal: ${e.message}\") }\n            val major = resolveAvailableMajor(context, requestedMajor)\n",
+        "runtime ensure",
+    )
+    src = _ensure_import(src, "id.imzyy.xl.ImzyyRuntimes")
+    path.write_text(src, encoding="utf-8")
+    print("runtimes: on-demand JRE hooks applied")
+
+
 def patch_fps_text(app: Path) -> None:
     """The FPS chip is accent-filled; its label must be dark now that the accent is near-white."""
     path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/SettingsScreen.kt"
@@ -437,7 +496,7 @@ def patch_contrast(app: Path) -> None:
     print(f"contrast: {flipped} white-on-accent usages flipped to black")
 
 
-def install_hub(app: Path, repo: str, version: str) -> None:
+def install_hub(app: Path, repo: str, version: str, variant: str = "full", runtimes: str = "{}") -> None:
     """Copy the self-contained IMZYY Hub (Compose) into the app and make it the launcher entry.
     The upstream MainActivity stays untouched; PLAY opens it."""
     overlay = Path(__file__).resolve().parents[1] / "android-overlay"
@@ -449,7 +508,11 @@ def install_hub(app: Path, repo: str, version: str) -> None:
     for kt in src_dir.glob("*.kt"):
         (dest / kt.name).write_text(kt.read_text(encoding="utf-8"), encoding="utf-8")
     tpl = (src_dir / "ImzyyConfig.kt.tpl").read_text(encoding="utf-8")
-    (dest / "ImzyyConfig.kt").write_text(tpl.replace("@VERSION@", version).replace("@REPO@", repo), encoding="utf-8")
+    escaped = runtimes.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+    (dest / "ImzyyConfig.kt").write_text(
+        tpl.replace("@VERSION@", version).replace("@REPO@", repo).replace("@VARIANT@", variant).replace("@RUNTIMES@", escaped),
+        encoding="utf-8",
+    )
     res = app / "src/main/res/values"
     res.mkdir(parents=True, exist_ok=True)
     (res / "imzyy_theme.xml").write_text((overlay / "res/imzyy_theme.xml").read_text(encoding="utf-8"), encoding="utf-8")
@@ -525,6 +588,8 @@ def main() -> int:
     parser.add_argument("--engine-dir", required=True, type=Path)
     parser.add_argument("--repo", default=os.environ.get("IMZYY_GITHUB_REPO", ""), help="owner/name for the in-app GitHub card")
     parser.add_argument("--version", default=os.environ.get("IMZYY_VERSION", "3.0.0"))
+    parser.add_argument("--variant", choices=("full", "lite"), default=os.environ.get("IMZYY_VARIANT", "full"))
+    parser.add_argument("--runtimes-out", type=Path, default=None, help="folder that receives the JREs stripped from the Lite APK")
     args = parser.parse_args()
     root = args.engine_dir.resolve()
     validate_upstream(root)
@@ -538,7 +603,9 @@ def main() -> int:
     patch_contrast(app)
     patch_fps_text(app)
     patch_controls(app)
-    install_hub(app, args.repo, args.version)
+    runtimes = patch_lite(app, args.repo, args.runtimes_out) if args.variant == "lite" else "{}"
+    install_hub(app, args.repo, args.version, args.variant, runtimes)
+    patch_runtime_hooks(app)
     patch_root_branding(root)
     # Keep upstream Android namespace/applicationId intact until the Microsoft
     # OAuth redirect URI has been independently reconfigured and tested.

@@ -16,6 +16,7 @@ object PerfPack {
         PerfMod("immediatelyfast", "ImmediatelyFast", "Mempercepat HUD, teks & GUI.", true),
         PerfMod("entityculling", "Entity Culling", "Tidak merender entity yang tak terlihat.", true),
         PerfMod("dynamic-fps", "Dynamic FPS", "Turunkan FPS saat game di background (hemat baterai).", false),
+        PerfMod("voxy", "Voxy (LOD jarak jauh)", "Fabric + Sodium saja. Berat dan butuh OpenGL 4.6: sering tidak jalan di HP, coba satu per satu.", false),
     )
 
     private const val TRACK = ".imzyy-fps-pack.json"

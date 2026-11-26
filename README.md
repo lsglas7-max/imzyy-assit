@@ -16,6 +16,17 @@ The selected open-source engine currently documents:
 
 OptiFine is not listed as a first-class integrated loader by this upstream. Do not assume it is guaranteed; use the upstream-supported loader and mod paths.
 
+## IMZYY XL Lite
+
+Lite is a build variant of the same project (`IMZYY_VARIANT=lite`, workflow `android-lite.yml`).
+
+- **Size**: only **Java 21** stays inside the APK. Java 8 / 17 / 25 (about 157 MB) are stripped from the APK, published by CI as assets of the `runtimes` GitHub release, and downloaded once, SHA-256 verified, when needed (HOME > Runtime Java, or automatically on game start when not on the UI thread). Estimated APK: roughly 105-120 MB; the build prints the real number and warns above 150 MB.
+- **All Minecraft versions**: the launcher picks the Java version per Minecraft version. Old versions (<= 1.16) need Java 8, 1.18-1.20.4 need Java 17, 26.x needs Java 25: download these once in HOME before playing. If a runtime is missing the launcher falls back to the bundled Java 21, which works for most modern versions but not for old/Forge-heavy ones.
+- **Mods**: IMPORT accepts `.mrpack`, a single `.jar`, or a `.zip` that contains mods (jars are found at any depth and flattened into `mods/`; nothing else is extracted).
+- **Voxy** is an opt-in entry in the BOOST pack (Fabric + Sodium only, needs OpenGL 4.6; often unsupported on phones).
+- **Controls** are unchanged: KONTROL tab + the upstream button editor.
+- **Look**: animated shimmer title, pulsing PLAY button, drifting particles, monochrome palette.
+
 ## v3: monochrome UI + IMZYY Hub
 
 - **Black / white theme** across the upstream screens (palette patch) with an adjusted contrast pass so white-on-accent button text becomes black.

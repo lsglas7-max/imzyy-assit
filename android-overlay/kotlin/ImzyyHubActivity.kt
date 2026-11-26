@@ -72,6 +72,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     var tab by mutableStateOf(0)
     var selectedId by mutableStateOf(prefs.getString("inst", "") ?: "")
     var ctlTick by mutableStateOf(0)
+    var rtTick by mutableStateOf(0)
     var busy by mutableStateOf(false)
     var progress by mutableStateOf(0f)
     var query by mutableStateOf("")
@@ -177,6 +178,37 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         say("Modpack: ${info.name} ${info.version} — ${info.files.size} file")
     }
 
+    /** One picker for everything: .mrpack, a single .jar, or a .zip that holds mods. */
+    fun pickFile(uri: Uri) = runJob {
+        val name = ModImport.displayName(ctx, uri)
+        if (name.endsWith(".jar", ignoreCase = true)) {
+            val n = ModImport.install(ctx, uri, File(needTarget(), "mods"), this::say)
+            say("✓ $n mod dipasang ke ${meta?.name}")
+            return@runJob
+        }
+        val asPack = try {
+            Mrpack.readIndex(ctx, uri)
+        } catch (e: Exception) {
+            if (name.endsWith(".mrpack", ignoreCase = true)) throw e
+            null
+        }
+        if (asPack != null) {
+            mrUri = uri
+            mrInfo = asPack
+            say("Modpack: ${asPack.name} ${asPack.version} — ${asPack.files.size} file")
+        } else {
+            val n = ModImport.install(ctx, uri, File(needTarget(), "mods"), this::say)
+            say("✓ $n mod dari zip dipasang ke ${meta?.name}")
+        }
+    }
+
+    fun downloadRuntime(major: Int) = runJob {
+        say("Mengunduh Java $major…")
+        ImzyyRuntimes.ensure(ctx, major) { progress = it }
+        rtTick++
+        say("✓ Java $major siap")
+    }
+
     fun importMrpack() = runJob {
         val uri = mrUri ?: error("Pilih file .mrpack dulu")
         val info = mrInfo ?: error("Pilih file .mrpack dulu")
@@ -274,8 +306,18 @@ private fun HomeTab(s: HubState) {
     LaunchedEffect(Unit) { s.checkUpdate() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Reveal(0) { Spacer(Modifier.height(24.dp)) } }
-        item { Reveal(1) { Title("IMZYY XL", "Minecraft Java • Android ARM64") } }
-        item { Reveal(2) { InkButton("▶  PLAY", { s.play() }) } }
+        item {
+            Reveal(1) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ShimmerTitle("IMZYY XL")
+                    Text(
+                        if (ImzyyConfig.VARIANT == "lite") "LITE  •  Minecraft Java  •  ARM64" else "Minecraft Java  •  ARM64",
+                        color = Ink.Sub, fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp,
+                    )
+                }
+            }
+        }
+        item { Reveal(2) { GlowButton("▶  PLAY", { s.play() }) } }
         item {
             Reveal(3) {
                 Panel {
@@ -297,6 +339,8 @@ private fun HomeTab(s: HubState) {
                 }
             }
         }
+        item { Reveal(4) { RuntimeCard(s) } }
+        item { LogCard(s) }
         if (ImzyyConfig.GITHUB_REPO.isNotEmpty()) {
             item {
                 Reveal(5) {
@@ -309,6 +353,32 @@ private fun HomeTab(s: HubState) {
                             InkButton("RILIS", { s.openUrl("https://github.com/" + ImzyyConfig.GITHUB_REPO + "/releases") }, Modifier.weight(1f), filled = false)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuntimeCard(s: HubState) {
+    val tick = s.rtTick
+    Panel {
+        Text("Runtime Java", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(
+            "Versi Minecraft memilih Java otomatis. Yang belum terpasang diunduh sekali saja (tanpa perlu uninstall).",
+            color = Ink.Sub, fontSize = 12.sp,
+        )
+        ImzyyRuntimes.majors.forEach { m ->
+            val ready = tick >= 0 && ImzyyRuntimes.installed(s.ctx, m)
+            val can = ImzyyRuntimes.downloadable(m)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Java $m", color = Ink.Text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                if (ready) {
+                    Chip("TERPASANG", true, compact = true) {}
+                } else if (can) {
+                    Chip("UNDUH ${ImzyyRuntimes.sizeMb(m)} MB", false, compact = true) { if (!s.busy) s.downloadRuntime(m) }
+                } else {
+                    Text("tidak tersedia", color = Ink.Sub, fontSize = 12.sp)
                 }
             }
         }
@@ -417,15 +487,15 @@ private fun ModsTab(s: HubState) {
 @Composable
 private fun ImportTab(s: HubState) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) s.loadMrpack(uri)
+        if (uri != null) s.pickFile(uri)
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { Reveal(0) { Title("IMPORT", "Modpack .mrpack (Modrinth)") } }
+        item { Reveal(0) { Title("IMPORT", "Modpack .mrpack, mod .jar, atau zip berisi mods") } }
         item { Reveal(1) { TargetCard(s) } }
         item {
             Reveal(2) {
                 Panel {
-                    InkButton("PILIH FILE .MRPACK", { picker.launch(arrayOf("*/*")) }, enabled = !s.busy)
+                    InkButton("PILIH FILE (.mrpack / .jar / .zip)", { picker.launch(arrayOf("*/*")) }, enabled = !s.busy)
                     val info = s.mrInfo
                     if (info != null) {
                         Text(info.name + "  " + info.version, color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)

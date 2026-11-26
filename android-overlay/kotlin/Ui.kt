@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -47,9 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -220,6 +223,23 @@ fun AnimatedBackdrop(modifier: Modifier = Modifier) {
             drawLine(Color(0x12FFFFFF), Offset(x, 0f), Offset(x - size.height * 0.25f, size.height), 1f)
             x += step
         }
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0x16FFFFFF), Color.Transparent),
+                center = Offset(size.width * (0.2f + 0.6f * p), size.height * 0.18f),
+                radius = size.width * 0.85f,
+            ),
+        )
+        for (i in 0 until 26) {
+            val px = ((i * 9301f + 49297f) % 233280f) / 233280f
+            val speed = 0.4f + (i % 5) * 0.15f
+            val py = 1f - ((p * speed + i * 0.037f) % 1f)
+            drawCircle(
+                color = Color(0x33FFFFFF),
+                radius = (1f + (i % 3)) * density,
+                center = Offset(px * size.width, py * size.height),
+            )
+        }
         val band = 160.dp.toPx()
         val cy = (p * (size.height + band * 2)) - band
         drawRect(
@@ -262,5 +282,56 @@ fun InkSlider(value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
                 .clip(CircleShape)
                 .background(Ink.White),
         )
+    }
+}
+
+@Composable
+fun ShimmerTitle(text: String, sizeSp: Int = 36) {
+    val t = rememberInfiniteTransition(label = "shimmer")
+    val x by t.animateFloat(
+        initialValue = -400f,
+        targetValue = 1100f,
+        animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing)),
+        label = "shimmerX",
+    )
+    val brush = Brush.linearGradient(
+        colors = listOf(Color(0xFF5E5E5E), Color(0xFFFFFFFF), Color(0xFF5E5E5E)),
+        start = Offset(x, 0f),
+        end = Offset(x + 360f, 0f),
+    )
+    Text(
+        text,
+        style = TextStyle(brush = brush, fontSize = sizeSp.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp),
+    )
+}
+
+@Composable
+fun GlowButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "glow")
+    val a by t.animateFloat(
+        initialValue = 0.08f,
+        targetValue = 0.42f,
+        animationSpec = infiniteRepeatable(animation = tween(1800, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "glowA",
+    )
+    Pressable(onClick = onClick, modifier = modifier) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = a),
+                        topLeft = Offset(-6f, -6f),
+                        size = Size(size.width + 12f, size.height + 12f),
+                        cornerRadius = CornerRadius(22.dp.toPx(), 22.dp.toPx()),
+                    )
+                }
+                .clip(RoundedCornerShape(16.dp))
+                .background(Ink.White)
+                .padding(vertical = 18.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text, color = Ink.Black, fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 3.sp)
+        }
     }
 }
