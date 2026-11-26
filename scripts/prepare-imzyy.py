@@ -586,6 +586,193 @@ def patch_runtime_hooks(app: Path) -> None:
     print("runtimes: on-demand JRE hooks applied")
 
 
+def patch_remove_release_notes(app: Path) -> None:
+    """Remove upstream's automatic GitHub release/update dialog from the launcher UI."""
+    path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MainActivity.kt"
+    src = require_file(path)
+    if "// IMZYY: release notes removed" not in src:
+        start = re.search(r"(?m)^[ \t]*// ── GitHub 릴리스 기반 업데이트 자동 감지 ──[^\n]*\n", src)
+        if start:
+            end = re.search(r"(?m)^[ \t]*MainScreen\(", src[start.end():])
+            if not end:
+                raise RuntimeError("Batas blok update checker di MainActivity.kt berubah.")
+            abs_end = start.end() + end.start()
+            src = src[:start.start()] + "                // IMZYY: release notes removed\n" + src[abs_end:]
+        elif "GithubUpdateChecker.fetchUpdate" in src or "updateRelease?.let" in src:
+            raise RuntimeError("Blok update/release notes berubah; tidak dihapus agar UI tidak rusak.")
+
+        dialog_start = re.search(r"(?m)^[ \t]*updateRelease\?\.let \{ release ->\n", src)
+        if dialog_start:
+            dialog_end = re.search(r"(?m)^ {16}\}\n(?= {12}\}\n)", src[dialog_start.end():])
+            if not dialog_end:
+                raise RuntimeError("Batas UpdateAvailableDialog di MainActivity.kt berubah.")
+            abs_end = dialog_start.end() + dialog_end.end()
+            src = src[:dialog_start.start()] + src[abs_end:]
+        elif "UpdateAvailableDialog(" in src:
+            raise RuntimeError("Pemanggilan UpdateAvailableDialog berubah; tidak dihapus secara parsial.")
+
+    # Clean imports only when they are no longer referenced anywhere in the file.
+    body = re.sub(r"(?m)^import .*\n", "", src)
+    for symbol in ("BuildConfig", "SettingManager", "GithubRelease", "GithubUpdateChecker", "UpdateAvailableDialog"):
+        if len(re.findall(rf"\b{re.escape(symbol)}\b", body)) == 0:
+            src = re.sub(rf"(?m)^import [^\n]*\b{re.escape(symbol)}\b[^\n]*\n", "", src)
+    path.write_text(src, encoding="utf-8")
+    if "GithubUpdateChecker.fetchUpdate" in src or "UpdateAvailableDialog(" in src:
+        raise RuntimeError("Release notes/update dialog masih tersisa di MainActivity.kt.")
+    print("ui: automatic release notes/update popup removed")
+
+
+def patch_async_hub_play(root: Path) -> None:
+    """Move option-file writes off the UI thread before opening the upstream launcher."""
+    path = root / "android-overlay/kotlin/ImzyyHubActivity.kt"
+    src = require_file(path)
+    old = '''    /** Lite: first launch of each instance gets the lightweight options.txt profile once
+     *  (original is backed up; later changes by the user are never overwritten). */
+    private fun liteAutoTune() {
+        if (ImzyyConfig.VARIANT != "lite") return
+        val m = meta ?: return
+        val key = "lite_tuned_" + m.id
+        if (prefs.getBoolean(key, false)) return
+        try {
+            FpsTuner.apply(InstanceManager.instanceDir(ctx, m.id), FpsTuner.Profile.SAVER)
+            prefs.edit().putBoolean(key, true).apply()
+            say("✓ Lite: profil HEMAT FPS dipasang otomatis untuk instance ini")
+        } catch (e: Exception) {
+            say("Lite auto-tune dilewati: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+'''
+    if old in src:
+        src = src.replace(old, "", 1)
+    elif "private fun liteAutoTune()" in src:
+        raise RuntimeError("Blok liteAutoTune berubah; penjadwalan ulang PLAY dibatalkan.")
+
+    old_play = '''    fun play() {
+        if (smooth) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.SMOOTH) } }
+        if (antiLag) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.lagValues(tier)) } }
+        liteAutoTune()
+        ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
+    }
+'''
+    new_play = '''    fun play() {
+        if (busy) {
+            say("Persiapan sebelumnya masih berjalan…")
+            return
+        }
+        // Snapshot state on the main thread; file operations run on IO to avoid an ANR.
+        val selected = meta
+        val useSmooth = smooth
+        val useAntiLag = antiLag
+        val deviceTier = tier
+        busy = true
+        progress = 0f
+        say("Menyiapkan instance…")
+        scope.launch {
+            val prep = withContext(Dispatchers.IO) {
+                runCatching {
+                    selected?.let { instance ->
+                        val dir = InstanceManager.instanceDir(ctx, instance.id)
+                        if (useSmooth) FpsTuner.applyValues(dir, FpsTuner.SMOOTH)
+                        if (useAntiLag) FpsTuner.applyValues(dir, FpsTuner.lagValues(deviceTier))
+                        if (ImzyyConfig.VARIANT == "lite") {
+                            val key = "lite_tuned_" + instance.id
+                            if (!prefs.getBoolean(key, false)) {
+                                FpsTuner.apply(dir, FpsTuner.Profile.SAVER)
+                                prefs.edit().putBoolean(key, true).apply()
+                                true
+                            } else false
+                        } else false
+                    } ?: false
+                }
+            }
+            prep.onSuccess { tuned ->
+                if (tuned) say("✓ Profil HEMAT FPS diterapkan untuk instance ini")
+            }.onFailure { error ->
+                // Optimization is optional; do not block the actual game launch if it fails.
+                say("Optimasi otomatis dilewati: ${error.message ?: error.javaClass.simpleName}")
+            }
+            busy = false
+            ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
+        }
+    }
+'''
+    if old_play in src:
+        src = src.replace(old_play, new_play, 1)
+    elif "fun play()" not in src or "withContext(Dispatchers.IO)" not in src:
+        raise RuntimeError("Fungsi PLAY di ImzyyHubActivity.kt berubah; tidak dapat memindahkan file I/O ke worker.")
+    path.write_text(src, encoding="utf-8")
+    if "withContext(Dispatchers.IO)" not in src or "fun play()" not in src:
+        raise RuntimeError("PLAY asynchronous tidak terpasang dengan benar.")
+    print("hub: PLAY preparation moved off the UI thread")
+
+
+def patch_launch_memory_and_errors(app: Path) -> None:
+    """Cap the game heap for low-RAM phones and route JVM Errors to the crash report."""
+    path = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt"
+    src = require_file(path)
+    marker = "// IMZYY: device-aware heap cap"
+    if marker not in src:
+        anchor = "        val jvmSettings = JvmSettingsManager.load(this)\n"
+        if anchor not in src:
+            raise RuntimeError("Anchor JvmSettingsManager.load di MinecraftActivity.kt berubah.")
+        addition = '''        val jvmSettings = JvmSettingsManager.load(this)
+        // IMZYY: device-aware heap cap. Android game process also needs native/GPU memory.
+        val imzyyTotalRamMb = runCatching {
+            val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val mi = android.app.ActivityManager.MemoryInfo()
+            am.getMemoryInfo(mi)
+            mi.totalMem / (1024L * 1024L)
+        }.getOrDefault(0L)
+        val imzyyHeapCapMb = when {
+            imzyyTotalRamMb <= 0L -> jvmSettings.maxHeapMb
+            imzyyTotalRamMb <= 4608L -> 1280
+            imzyyTotalRamMb <= 6144L -> 1536
+            imzyyTotalRamMb <= 8192L -> 2048
+            else -> 3072
+        }
+        val imzyySafeHeapMb = minOf(jvmSettings.maxHeapMb, imzyyHeapCapMb)
+        val imzyyLaunchSettings = jvmSettings.copy(maxHeapMb = imzyySafeHeapMb)
+        Log.i("IMZYY_MEMORY", "RAM=${imzyyTotalRamMb}MB, requested=${jvmSettings.maxHeapMb}MB, launchHeap=${imzyySafeHeapMb}MB")
+'''
+        src = src.replace(anchor, addition, 1)
+        if "imzyyLaunchSettings.toJvmArgArray(" not in src:
+            if src.count("jvmSettings.toJvmArgArray(") != 1:
+                raise RuntimeError("Pemanggilan jvmSettings.toJvmArgArray berubah.")
+            src = src.replace("jvmSettings.toJvmArgArray(", "imzyyLaunchSettings.toJvmArgArray(", 1)
+
+    meta_marker = "// IMZYY: ignore metadata heap overrides"
+    if meta_marker not in src:
+        end_anchor = '''        }.toTypedArray()
+// ── BootstrapLauncher 의 -DignoreList 에 LWJGL 들 추가 ──
+'''
+        if end_anchor not in src:
+            raise RuntimeError("Batas metaJvmArgs di MinecraftActivity.kt berubah.")
+        filtered = '''        }.toTypedArray()
+        // IMZYY: ignore metadata heap overrides
+        val imzyyMetaJvmArgs = metaJvmArgs.filterNot { it.startsWith("-Xmx") || it.startsWith("-XX:MaxHeapSize=") }.toTypedArray()
+// ── BootstrapLauncher 의 -DignoreList 에 LWJGL 들 추가 ──
+'''
+        src = src.replace(end_anchor, filtered, 1)
+        src = src.replace("+\n                metaJvmArgs\n", "+\n                imzyyMetaJvmArgs\n", 1)
+
+    # Some failures are LinkageError/other Errors rather than Exception.
+    if not re.search(r'(?m)^\s*} catch \(e: Throwable\) \{\n\s*Log\.e\("FLAME_LAUNCHER", "MC 실행 예외:', src):
+        catch_pattern = re.compile(
+            r'(?m)^(?P<indent>\s*)} catch \(e: Exception\) \{\n(?P=indent)    Log\.e\("FLAME_LAUNCHER", "MC 실행 예외:'
+        )
+        matches = list(catch_pattern.finditer(src))
+        if len(matches) != 1:
+            raise RuntimeError("Blok penanganan exception startMinecraft berubah; crash capture tidak dipaksakan.")
+        src = catch_pattern.sub(lambda m: m.group(0).replace("e: Exception", "e: Throwable", 1), src, count=1)
+
+    if "imzyyLaunchSettings.toJvmArgArray(" not in src or "imzyyMetaJvmArgs" not in src:
+        raise RuntimeError("Heap cap belum diterapkan ke argumen JVM.")
+    if not re.search(r'(?m)^\s*} catch \(e: Throwable\) \{\n\s*Log\.e\("FLAME_LAUNCHER", "MC 실행 예외:', src):
+        raise RuntimeError("Throwable launch error capture belum terpasang.")
+    path.write_text(src, encoding="utf-8")
+    print("launch: device-aware heap cap and Throwable crash capture applied")
+
 def patch_asset_repair(app: Path) -> None:
     # Hook the launch method itself instead of counting call sites. Upstream has changed
     # the number and arrangement of GLFW/SDL launch paths over time; all routes that
@@ -866,15 +1053,18 @@ def main() -> int:
     patch_contrast(app)
     patch_fps_text(app)
     patch_controls(app)
+    patch_remove_release_notes(app)
+    patch_async_hub_play(Path(__file__).resolve().parents[1])
     runtimes = patch_lite(app, args.repo, args.runtimes_out) if args.variant == "lite" else "{}"
     install_hub(app, args.repo, args.version, args.variant, runtimes)
     patch_runtime_hooks(app)
+    patch_launch_memory_and_errors(app)
     patch_asset_repair(app)
     patch_input_sender(app)
     patch_root_branding(root)
     # Keep upstream Android namespace/applicationId intact until the Microsoft
     # OAuth redirect URI has been independently reconfigured and tested.
-    print("IMZYY XL monochrome UI, Hub (Boost/Mods/.mrpack import), typography and device-capped performance profiles applied (ARM64 upstream engine retained).")
+    print("IMZYY XL: asynchronous PLAY, release-notes removal, device-aware JVM heap, crash capture and asset repair applied (ARM64 upstream engine retained).")
     return 0
 
 if __name__ == "__main__":

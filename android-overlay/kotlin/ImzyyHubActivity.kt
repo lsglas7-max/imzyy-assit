@@ -260,22 +260,6 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     }
 
 
-    /** Lite: first launch of each instance gets the lightweight options.txt profile once
-     *  (original is backed up; later changes by the user are never overwritten). */
-    private fun liteAutoTune() {
-        if (ImzyyConfig.VARIANT != "lite") return
-        val m = meta ?: return
-        val key = "lite_tuned_" + m.id
-        if (prefs.getBoolean(key, false)) return
-        try {
-            FpsTuner.apply(InstanceManager.instanceDir(ctx, m.id), FpsTuner.Profile.SAVER)
-            prefs.edit().putBoolean(key, true).apply()
-            say("✓ Lite: profil HEMAT FPS dipasang otomatis untuk instance ini")
-        } catch (e: Exception) {
-            say("Lite auto-tune dilewati: ${e.message ?: e.javaClass.simpleName}")
-        }
-    }
-
     fun switchSmooth(on: Boolean) {
         smooth = on
         prefs.edit().putBoolean("smooth", on).apply()
@@ -332,10 +316,45 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     }
 
     fun play() {
-        if (smooth) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.SMOOTH) } }
-        if (antiLag) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.lagValues(tier)) } }
-        liteAutoTune()
-        ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
+        if (busy) {
+            say("Persiapan sebelumnya masih berjalan…")
+            return
+        }
+        // Snapshot state on the main thread; file operations run on IO to avoid an ANR.
+        val selected = meta
+        val useSmooth = smooth
+        val useAntiLag = antiLag
+        val deviceTier = tier
+        busy = true
+        progress = 0f
+        say("Menyiapkan instance…")
+        scope.launch {
+            val prep = withContext(Dispatchers.IO) {
+                runCatching {
+                    selected?.let { instance ->
+                        val dir = InstanceManager.instanceDir(ctx, instance.id)
+                        if (useSmooth) FpsTuner.applyValues(dir, FpsTuner.SMOOTH)
+                        if (useAntiLag) FpsTuner.applyValues(dir, FpsTuner.lagValues(deviceTier))
+                        if (ImzyyConfig.VARIANT == "lite") {
+                            val key = "lite_tuned_" + instance.id
+                            if (!prefs.getBoolean(key, false)) {
+                                FpsTuner.apply(dir, FpsTuner.Profile.SAVER)
+                                prefs.edit().putBoolean(key, true).apply()
+                                true
+                            } else false
+                        } else false
+                    } ?: false
+                }
+            }
+            prep.onSuccess { tuned ->
+                if (tuned) say("✓ Profil HEMAT FPS diterapkan untuk instance ini")
+            }.onFailure { error ->
+                // Optimization is optional; do not block the actual game launch if it fails.
+                say("Optimasi otomatis dilewati: ${error.message ?: error.javaClass.simpleName}")
+            }
+            busy = false
+            ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
+        }
     }
 }
 
