@@ -617,38 +617,83 @@ def patch_asset_repair(app: Path) -> None:
         renamed_decl = re.sub(r"\bsetupAndLaunch\b", wrapper_name, original_decl, count=1)
         wrapper = f'''{indent}{marker}: verify and restore Mojang assets before JVM startup.
 {indent}private var imzyyAssetRepairStarted = false
+{indent}private var imzyyAssetRepairCompleted = false
 
 {indent}{mods}fun setupAndLaunch(surface: Surface) {{
-{indent}    if (imzyyAssetRepairStarted) return
+{indent}    if (imzyyAssetRepairStarted || imzyyAssetRepairCompleted) return
 {indent}    imzyyAssetRepairStarted = true
 {indent}    Toast.makeText(this, "Memeriksa asset Minecraft…", Toast.LENGTH_SHORT).show()
 {indent}    lifecycleScope.launch {{
-{indent}        try {{
-{indent}            val repaired = withContext(Dispatchers.IO) {{
-{indent}                ImzyyAssets.repair(applicationContext, assetIndex, versionId)
+{indent}        val repaired = try {{
+{indent}            withContext(Dispatchers.IO) {{
+{indent}                ImzyyAssets.repair(
+{indent}                    applicationContext,
+{indent}                    assetIndex,
+{indent}                    versionId,
+{indent}                    instanceDir,
+{indent}                    customGameDir,
+{indent}                )
 {indent}            }}
-{indent}            if (repaired > 0) {{
-{indent}                Toast.makeText(
-{indent}                    this@MinecraftActivity,
-{indent}                    "$repaired asset Minecraft yang hilang berhasil dipulihkan.",
-{indent}                    Toast.LENGTH_LONG,
-{indent}                ).show()
-{indent}            }}
-{indent}            {wrapper_name}(surface)
 {indent}        }} catch (e: Exception) {{
-{indent}            Log.e("IMZYY_ASSETS", "Perbaikan asset gagal; Minecraft tidak dijalankan", e)
+{indent}            imzyyAssetRepairStarted = false
+{indent}            Log.e("IMZYY_ASSETS", "Perbaikan asset gagal; Minecraft menunggu tindakan pengguna", e)
+{indent}            android.app.AlertDialog.Builder(this@MinecraftActivity)
+{indent}                .setTitle("Asset Minecraft belum siap")
+{indent}                .setMessage(
+{indent}                    "Beberapa file game belum bisa dipulihkan. Periksa koneksi internet dan ruang penyimpanan, lalu coba lagi.\n\n" +
+{indent}                        (e.message ?: e.javaClass.simpleName)
+{indent}                )
+{indent}                .setPositiveButton("COBA LAGI") {{ _, _ ->
+{indent}                    val retrySurface = currentSurface?.takeIf {{ it.isValid }}
+{indent}                        ?: surface.takeIf {{ it.isValid }}
+{indent}                    if (retrySurface != null) setupAndLaunch(retrySurface)
+{indent}                    else Toast.makeText(this@MinecraftActivity, "Layar game belum siap. Buka ulang instance.", Toast.LENGTH_LONG).show()
+{indent}                }}
+{indent}                .setNegativeButton("KEMBALI") {{ _, _ -> finish() }}
+{indent}                .setCancelable(false)
+{indent}                .show()
+{indent}            return@launch
+{indent}        }}
+{indent}        if (repaired > 0) {{
 {indent}            Toast.makeText(
 {indent}                this@MinecraftActivity,
-{indent}                "Asset Minecraft gagal dipulihkan: ${{e.message ?: e.javaClass.simpleName}}",
+{indent}                "$repaired asset Minecraft yang hilang berhasil dipulihkan.",
 {indent}                Toast.LENGTH_LONG,
 {indent}            ).show()
-{indent}            finish()
 {indent}        }}
+{indent}        val launchSurface = currentSurface?.takeIf {{ it.isValid }}
+{indent}            ?: surface.takeIf {{ it.isValid }}
+{indent}        if (launchSurface == null) {{
+{indent}            imzyyAssetRepairStarted = false
+{indent}            Toast.makeText(this@MinecraftActivity, "Layar game belum siap. Buka ulang instance.", Toast.LENGTH_LONG).show()
+{indent}            return@launch
+{indent}        }}
+{indent}        imzyyAssetRepairCompleted = true
+{indent}        {wrapper_name}(launchSurface)
 {indent}    }}
 {indent}}}
 
 '''
         src = src[:match.start()] + wrapper + renamed_decl + src[match.end():]
+
+        if "else if (imzyyAssetRepairCompleted)" not in src:
+            bridge_pattern = re.compile(
+                r"(?m)^(?P<indent>[ \t]*)\} else \{\n"
+                r"[ \t]+try \{\n"
+                r"[ \t]+System\.loadLibrary\(\"flamejvm\"\)\n"
+                r"[ \t]+nativeSetupBridgeWindow\(surface\)"
+            )
+            bridge_matches = list(bridge_pattern.finditer(src))
+            if len(bridge_matches) != 1:
+                raise RuntimeError(
+                    "Cabang rebind surface GLFW berubah; tidak bisa memastikan bridge tidak berjalan "
+                    f"sebelum pemeriksaan asset selesai (ditemukan {len(bridge_matches)})."
+                )
+            bridge_match = bridge_matches[0]
+            bridge_block = bridge_match.group(0).replace(
+                "} else {", "} else if (imzyyAssetRepairCompleted) {", 1
+            )
+            src = src[:bridge_match.start()] + bridge_block + src[bridge_match.end():]
 
     for fqcn in (
         "id.imzyy.xl.ImzyyAssets",
@@ -661,8 +706,10 @@ def patch_asset_repair(app: Path) -> None:
     ):
         src = _ensure_import(src, fqcn)
 
-    if marker not in src or "setupAndLaunchAfterAssetRepair(surface)" not in src:
+    if marker not in src or "setupAndLaunchAfterAssetRepair(launchSurface)" not in src:
         raise RuntimeError("Wrapper asset repair tidak terbentuk atau tidak meneruskan peluncuran.")
+    if "imzyyAssetRepairCompleted" not in src or "else if (imzyyAssetRepairCompleted)" not in src:
+        raise RuntimeError("Barrier asset belum melindungi surface GLFW dari rebind terlalu dini.")
     if len(re.findall(r"(?m)^\s*(?:(?:private|internal|protected)\s+)?fun\s+setupAndLaunch\s*\(surface:\s*Surface\)", src)) != 1:
         raise RuntimeError("Wrapper setupAndLaunch tidak terbentuk tepat satu kali.")
     if len(re.findall(r"(?m)^\s*(?:(?:private|internal|protected)\s+)?fun\s+setupAndLaunchAfterAssetRepair\s*\(surface:\s*Surface\)", src)) != 1:

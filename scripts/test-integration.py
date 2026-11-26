@@ -43,9 +43,25 @@ val FlameDark = Color(0xFF0B4A8F)
 ''')
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text(
             "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n"
+            "    private var jvmStarted = false\n"
+            "    private var currentSurface: Surface? = null\n"
+            "    private var instanceDir: String? = null\n"
+            "    private var customGameDir: String? = null\n"
             "    private fun fakeGlfwStart(surface: Surface) { if (!jvmStarted) { jvmStarted = true; setupAndLaunch(surface) } }\n"
             "    private fun fakeSdlStart(surface: Surface) { if (jvmStarted) return; jvmStarted = true; setupAndLaunch(surface) }\n"
             "    private fun fakeRetryStart(surface: Surface) { setupAndLaunch(surface) }\n"
+            "    private fun surfaceCreated(surface: Surface) {\n"
+            "        currentSurface = surface\n"
+            "        if (!jvmStarted) {\n"
+            "            jvmStarted = true\n"
+            "            setupAndLaunch(surface)\n"
+            "        } else {\n"
+            "            try {\n"
+            "                System.loadLibrary(\"flamejvm\")\n"
+            "                nativeSetupBridgeWindow(surface)\n"
+            "            } catch (e: Exception) {}\n"
+            "        }\n"
+            "    }\n"
             "    private fun setupAndLaunch(surface: Surface) {}\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
@@ -165,15 +181,35 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "a.sendKeyPress(key = glfw, scancode = 0, action = (if (down) 1 else 0), mods = 0)" in _inp, _inp
         assert "internal fun sendKeyPress" in (base_ui / "MinecraftActivity.kt").read_text()
         mc_activity = (base_ui / "MinecraftActivity.kt").read_text()
-        assert "ImzyyAssets.repair(applicationContext, assetIndex, versionId)" in mc_activity
+        assert "ImzyyAssets.repair(" in mc_activity
+        assert "                    instanceDir," in mc_activity
+        assert "                    customGameDir," in mc_activity
+        assert "Asset Minecraft belum siap" in mc_activity
+        assert 'setPositiveButton("COBA LAGI")' in mc_activity
+        assert "imzyyAssetRepairCompleted = true" in mc_activity
+        assert "else if (imzyyAssetRepairCompleted)" in mc_activity
+        assert "setupAndLaunchAfterAssetRepair(launchSurface)" in mc_activity
         assert "private fun setupAndLaunch(surface: Surface)" in mc_activity
         assert "private fun setupAndLaunchAfterAssetRepair(surface: Surface)" in mc_activity
-        assert mc_activity.count("setupAndLaunchAfterAssetRepair(surface)") == 1
-        assert mc_activity.count("setupAndLaunch(surface)") == 3  # three independent launch paths
+        assert mc_activity.count("setupAndLaunchAfterAssetRepair(launchSurface)") == 1
+        assert mc_activity.count("setupAndLaunch(surface)") == 4  # three fixtures plus GLFW surface-created path
         assert "import id.imzyy.xl.ImzyyAssets" in mc_activity
         assert "import kotlinx.coroutines.withContext" in mc_activity
         assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
-        assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
+        pad_source = (hub_dir / "ImzyyPad.kt").read_text()
+        assert "fun movePreview(id: String" in pad_source
+        assets_source = (hub_dir / "ImzyyAssets.kt").read_text()
+        assert "val searchRoots = listOf(instanceBase, externalRoot, context.filesDir)" in assets_source
+        assert "val assetsRoot = searchRoots" in assets_source
+        hub_source = (hub_dir / "ImzyyHubActivity.kt").read_text()
+        assert "private fun PadLayoutEditor(s: HubState)" in hub_source
+        assert "EDITOR TOMBOL LOBI" in hub_source
+        assert ".aspectRatio(20f / 9f)" in hub_source
+        assert "detectDragGestures(" in hub_source and "ImzyyPad.movePreview" in hub_source
+        assert "pointerInput(button.id, widthPx, heightPx, layoutRevision)" in hub_source
+        assert "val minX = (buttonSizePx / (2f * widthPx))" in hub_source
+        assert 'InkButton("SIMPAN POSISI"' in hub_source
+        assert "switchSmooth" in hub_source and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
         for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt", "ImzyyAssets.kt"):
             assert (hub_dir / name).is_file(), name
@@ -198,7 +234,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
     assert (ROOT / "scripts/build-imzyy.sh").is_file()
     assert not (ROOT / "scripts/build-amethyst.sh").exists()
     assert not (ROOT / "scripts/prepare-amethyst.py").exists()
-    print("IMZYY integration tests passed: asset repair hooks (GLFW + SDL), single-app activity check, branding, performance profiles, idempotency and ARM64.")
+    print("IMZYY integration tests passed: per-instance asset repair, GLFW rebind barrier, retry flow, lobby pad editor, single-app activity, branding, performance profiles, idempotency and ARM64.")
     return 0
 
 if __name__ == "__main__":

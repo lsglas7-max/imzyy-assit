@@ -23,17 +23,41 @@ object ImzyyAssets {
      *
      * Returns the number of repaired files. This must be called from a worker thread.
      */
-    fun repair(context: Context, assetIndexId: String, versionId: String): Int {
+    fun repair(
+        context: Context,
+        assetIndexId: String,
+        versionId: String,
+        instanceDir: String? = null,
+        customGameDir: String? = null,
+    ): Int {
         require(assetIndexId.matches(INDEX_ID)) {
             "Asset index Minecraft tidak valid untuk versi $versionId"
         }
 
-        // FlameLauncher passes --assetsDir <app external files>/assets. Use that exact root.
-        val gameRoot = context.getExternalFilesDir(null) ?: context.filesDir
-        val assetsRoot = File(gameRoot, "assets")
+        // Mirror MinecraftActivity.startMinecraft(): assets may live in an isolated instance,
+        // the app external-files root, or the app files root. Repair the exact directory that
+        // the upstream launcher will select, rather than always repairing the shared root.
+        val externalRoot = context.getExternalFilesDir(null) ?: context.filesDir
+        val instanceBase = instanceDir?.takeIf { it.isNotBlank() }?.let(::File)
+            ?: customGameDir?.takeIf { it.isNotBlank() }?.let(::File)
+            ?: File(externalRoot, "instances/vanilla_$versionId")
+        val searchRoots = listOf(instanceBase, externalRoot, context.filesDir)
+            .distinctBy { it.absolutePath }
+        val assetsRoot = searchRoots
+            .map { File(it, "assets") }
+            .firstOrNull { candidate ->
+                val indexes = File(candidate, "indexes")
+                indexes.isDirectory && indexes.listFiles()?.isNotEmpty() == true
+            }
+            ?: File(externalRoot, "assets")
         val indexesDir = File(assetsRoot, "indexes")
         val indexFile = File(indexesDir, "$assetIndexId.json")
-        val versionMetadata = findVersionMetadata(gameRoot, versionId)
+        val metadataCandidates = searchRoots.asSequence()
+            .mapNotNull { root -> findVersionMetadata(root, versionId) }
+            .toList()
+        val versionMetadata = metadataCandidates.firstOrNull { it.optJSONObject("assetIndex") != null }
+            ?: metadataCandidates.firstOrNull()
+        Log.i(TAG, "Asset root terpilih untuk $versionId: ${assetsRoot.absolutePath}")
         val assetMetadata = versionMetadata?.optJSONObject("assetIndex")
         val expectedIndexSha1 = assetMetadata?.optString("sha1")?.takeIf { it.matches(HEX_40) }
         val indexUrl = assetMetadata?.optString("url")?.takeIf { it.startsWith("https://") }

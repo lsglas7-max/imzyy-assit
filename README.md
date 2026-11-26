@@ -11,7 +11,7 @@ The selected open-source engine currently documents:
 - Mod and modpack discovery/installation through CurseForge and Modrinth, including dependencies.
 - Version-matched OpenJDK runtimes selected automatically.
 - Zink, Krypton, GL4ES and MobileGlues rendering paths, with hardware-dependent fallback behavior.
-- Touch controls, editable on-screen buttons, hardware keyboard, mouse and gamepad support.
+- Touch controls, a 20:9 lobby button-layout editor, editable on-screen buttons, hardware keyboard, mouse and gamepad support.
 - ARM64 Android builds.
 
 OptiFine is not listed as a first-class integrated loader by this upstream. Do not assume it is guaranteed; use the upstream-supported loader and mod paths.
@@ -24,8 +24,8 @@ Lite is a build variant of the same project (`IMZYY_VARIANT=lite`, workflow `and
 - **All Minecraft versions**: the launcher picks the Java version per Minecraft version. Old versions (<= 1.16) need Java 8, 1.18-1.20.4 need Java 17, 26.x needs Java 25: download these once in HOME before playing. If a runtime is missing the launcher falls back to the bundled Java 21, which works for most modern versions but not for old/Forge-heavy ones.
 - **Mods**: IMPORT accepts `.mrpack`, a single `.jar`, or a `.zip` that contains mods (jars are found at any depth and flattened into `mods/`; nothing else is extracted).
 - **Voxy** is an opt-in entry in the BOOST pack (Fabric + Sodium only, needs OpenGL 4.6; often unsupported on phones).
-- **Controls** are unchanged: KONTROL tab + the upstream button editor.
-- **Asset repair**: before the Minecraft JVM starts, the selected asset index is checked. Missing or wrong-sized objects are downloaded again from Mojang and SHA-1 verified; if repair fails, launch is stopped with an error instead of crashing later while rendering.
+- **Controls**: KONTROL tab now includes a draggable 20:9 lobby preview. Arrange the on-screen keys before opening an instance or creating a world; the saved layout is shared with the isolated game process. Existing in-game PAD editing remains available.
+- **Launch / asset repair**: before the Minecraft JVM starts, the asset folder is resolved using the same instance/shared-directory priority as the upstream launch code. Missing or wrong-sized objects are downloaded again from Mojang and SHA-1 verified. GLFW surface rebinding waits until this check finishes, and the launch hook uses the newest valid surface. If repair fails, a retry dialog is shown rather than silently closing the game activity.
 - **Look**: animated shimmer title, pulsing PLAY button, drifting particles, monochrome palette.
 
 ## v3: monochrome UI + IMZYY Hub
@@ -40,8 +40,8 @@ Lite is a build variant of the same project (`IMZYY_VARIANT=lite`, workflow `and
 - **KONTROL tab + in-game hooks** (patched into the real upstream input code, verified against its source):
   - camera sensitivity (replaces the fixed 1.5 constant), drag slop and long-press delay, all live-tunable;
   - **virtual mouse / touchpad mode** for menus and inventory: drag moves a visible cursor, tap = left click, long press or two-finger tap = right click (gameplay keeps normal camera control);
-  - on-screen button colors converted to monochrome, and a shortcut to the upstream button-layout editor.
-  - Settings travel via `filesDir/imzyy_controls.json` because the game runs in its own `:minecraft` process; they apply when the game (re)starts.
+  - a draggable on-screen button-layout preview in the KONTROL tab before entering a world, saved locally and loaded by the `:minecraft` process; the in-game PAD editor remains available.
+  - on-screen button colors converted to monochrome; camera and input settings travel via `filesDir/imzyy_controls.json`, while pad layout is stored in `filesDir/imzyy_pad.json` because the game runs in its own `:minecraft` process.
 - Instances in the Hub come straight from the launcher's own instance list (Minecraft version and loader are read automatically), so mod install/FPS pack/.mrpack always match the selected instance.
 - Local `.mrpack` import checks the pack's Minecraft version and loader against the selected instance and refuses mismatches.
 

@@ -131,10 +131,18 @@ object ImzyyPad {
         save(ctx)
     }
 
-    fun move(ctx: Context, id: String, x: Float, y: Float) {
+    /** Updates the preview while dragging; persistence happens once when the drag ends. */
+    fun movePreview(id: String, x: Float, y: Float) {
         val i = buttons.indexOfFirst { it.id == id }
         if (i < 0) return
-        buttons[i] = buttons[i].copy(x = x, y = y)
+        buttons[i] = buttons[i].copy(
+            x = x.coerceIn(0.03f, 0.97f),
+            y = y.coerceIn(0.05f, 0.95f),
+        )
+    }
+
+    fun move(ctx: Context, id: String, x: Float, y: Float) {
+        movePreview(id, x, y)
         save(ctx)
     }
 

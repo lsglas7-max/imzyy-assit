@@ -8,6 +8,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.roundToInt
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -625,12 +638,84 @@ private fun SliderRow(title: String, valueText: String, value: Float, min: Float
 }
 
 @Composable
+private fun PadLayoutEditor(s: HubState) {
+    val density = LocalDensity.current
+    // Incremented only after a drag is committed or a reset occurs. Keeping it out of
+    // the drag updates prevents pointerInput from cancelling the gesture mid-drag.
+    val layoutRevision = s.ctlTick
+    Panel {
+        Text("EDITOR TOMBOL LOBI", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(
+            "Geser tombol pada pratinjau ini untuk mengatur tata letak sebelum membuka instance atau membuat world. Posisi disimpan di perangkat.",
+            color = Ink.Sub,
+            fontSize = 12.sp,
+        )
+        BoxWithConstraints(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(20f / 9f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Ink.Raised)
+                .border(1.dp, Ink.Line, RoundedCornerShape(14.dp)),
+        ) {
+            val widthPx = with(density) { maxWidth.toPx() }.coerceAtLeast(1f)
+            val heightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
+            val buttonSize = 38.dp
+            val buttonSizePx = with(density) { buttonSize.toPx() }
+
+            // A faint centre guide makes the landscape preview easier to arrange.
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("PRATINJAU LOBI · 20:9", color = Ink.Sub.copy(alpha = 0.45f), fontSize = 10.sp)
+            }
+            for (button in ImzyyPad.buttons.toList()) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (button.x * widthPx - buttonSizePx / 2f).roundToInt(),
+                                (button.y * heightPx - buttonSizePx / 2f).roundToInt(),
+                            )
+                        }
+                        .size(buttonSize)
+                        .clip(CircleShape)
+                        .background(Ink.Surface)
+                        .border(1.dp, Ink.White.copy(alpha = 0.82f), CircleShape)
+                        .pointerInput(button.id, widthPx, heightPx, layoutRevision) {
+                            var workingX = button.x
+                            var workingY = button.y
+                            val minX = (buttonSizePx / (2f * widthPx)).coerceIn(0.03f, 0.49f)
+                            val minY = (buttonSizePx / (2f * heightPx)).coerceIn(0.05f, 0.49f)
+                            detectDragGestures(
+                                onDragEnd = { ImzyyPad.save(s.ctx); s.ctlTick++ },
+                                onDragCancel = { ImzyyPad.save(s.ctx); s.ctlTick++ },
+                            ) { change, dragAmount ->
+                                change.consume()
+                                workingX = (workingX + dragAmount.x / widthPx).coerceIn(minX, 1f - minX)
+                                workingY = (workingY + dragAmount.y / heightPx).coerceIn(minY, 1f - minY)
+                                ImzyyPad.movePreview(button.id, workingX, workingY)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(button.label, color = Ink.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InkButton("SIMPAN POSISI", { ImzyyPad.save(s.ctx); s.ctlTick++ }, Modifier.weight(1f))
+            InkButton("RESET SEMUA", { ImzyyPad.reset(s.ctx); s.ctlTick++ }, Modifier.weight(1f), filled = false)
+        }
+    }
+}
+
+@Composable
 private fun ControlsTab(s: HubState) {
     val tick = s.ctlTick // recompose on change
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Reveal(0) { Title("KONTROL", "Kamera, mouse virtual & tombol") } }
+        item { Reveal(1) { PadLayoutEditor(s) } }
         item {
-            Reveal(1) {
+            Reveal(2) {
                 Panel {
                     Text("Kamera & sentuhan", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     SliderRow("Sensitivitas kamera", "%.2f".format(ImzyyControls.look) + if (tick >= 0) "x" else "", ImzyyControls.look, 0.3f, 3.5f) {
@@ -646,7 +731,7 @@ private fun ControlsTab(s: HubState) {
             }
         }
         item {
-            Reveal(2) {
+            Reveal(3) {
                 Panel {
                     Text("Mouse virtual (touchpad)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text("Di menu & inventori: geser jari untuk memindahkan kursor, ketuk = klik kiri, tahan atau ketuk 2 jari = klik kanan. Saat bermain tetap kontrol kamera biasa.", color = Ink.Sub, fontSize = 12.sp)
@@ -664,20 +749,20 @@ private fun ControlsTab(s: HubState) {
             }
         }
         item {
-            Reveal(3) {
+            Reveal(4) {
                 Panel {
                     Text("Tombol layar", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("Atur posisi, ukuran, dan tombol di editor bawaan. Perubahan kontrol di atas berlaku saat game dimulai/dibuka lagi.", color = Ink.Sub, fontSize = 12.sp)
+                    Text("Editor bawaan tetap tersedia untuk tata letak asli launcher. Perubahan sensitivitas dan sentuhan di atas berlaku saat game dibuka lagi.", color = Ink.Sub, fontSize = 12.sp)
                     InkButton("BUKA EDITOR TOMBOL", { s.openKeyEditor() })
                     InkButton("RESET KONTROL KE DEFAULT", { ImzyyControls.reset(s.ctx); s.ctlTick++ }, filled = false)
                 }
             }
         }
         item {
-            Reveal(4) {
+            Reveal(5) {
                 Panel {
                     Text("Tombol IMZYY (di dalam game)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("WASD, klik kiri/kanan, dan tombol lain muncul di game, termasuk sebelum membuat world. Di dalam game ketuk tombol PAD (atas) lalu geser tombol untuk mengatur posisi, ketuk SIMPAN.", color = Ink.Sub, fontSize = 12.sp)
+                    Text("WASD, klik kiri/kanan, lompat, sneak, dan tombol tambahan memakai posisi dari editor lobi. Di dalam game, ketuk PAD untuk mengedit lagi.", color = Ink.Sub, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip("AKTIF", ImzyyPad.enabled) { ImzyyPad.enabled = true; ImzyyPad.save(s.ctx) }
                         Chip("MATI", !ImzyyPad.enabled) { ImzyyPad.enabled = false; ImzyyPad.save(s.ctx) }
@@ -692,7 +777,7 @@ private fun ControlsTab(s: HubState) {
             }
         }
         item {
-            Reveal(5) {
+            Reveal(6) {
                 Panel {
                     Text("Daftar tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text("Ketuk mode untuk mengganti: TEKAN (aktif selagi ditekan), TAHAN (ketuk sekali = terkunci, ketuk lagi = lepas), KLIK / TAHAN LAMA (ketuk = klik, tahan lama = terkunci).", color = Ink.Sub, fontSize = 12.sp)
@@ -707,7 +792,7 @@ private fun ControlsTab(s: HubState) {
             }
         }
         item {
-            Reveal(6) {
+            Reveal(7) {
                 Panel {
                     Text("Tambah tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Row(
