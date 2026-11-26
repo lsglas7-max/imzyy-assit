@@ -146,6 +146,64 @@ def patch_in_app_branding(app: Path) -> None:
 
 
 
+INTER_URL = "https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip"
+INTER_FILES = {"Inter-Regular.ttf": "inter_regular.ttf", "Inter-Medium.ttf": "inter_medium.ttf",
+               "Inter-SemiBold.ttf": "inter_semibold.ttf", "Inter-Bold.ttf": "inter_bold.ttf"}
+
+
+def _app_namespace(app: Path) -> str | None:
+    for name in ("build.gradle.kts", "build.gradle"):
+        f = app / name
+        if f.exists():
+            m = re.search(r"namespace\s*=?\s*[\"']([\w.]+)[\"']", f.read_text(encoding="utf-8"))
+            if m:
+                return m.group(1)
+    return None
+
+
+def patch_fonts(app: Path) -> str:
+    """Bundle Inter (open-source, closest to the iPhone look; Apple's SF Pro cannot be redistributed).
+    Falls back to the system sans face if the download or namespace lookup fails."""
+    import io
+    import os
+    import urllib.request
+    import zipfile
+
+    hub = app / "src/main/java/id/imzyy/xl"
+    hub.mkdir(parents=True, exist_ok=True)
+    fallback = "package id.imzyy.xl\n\nimport androidx.compose.ui.text.font.FontFamily\n\nobject ImzyyFonts {\n    val family: FontFamily = FontFamily.SansSerif\n}\n"
+    ns = _app_namespace(app)
+    font_dir = app / "src/main/res/font"
+    ready = all((font_dir / v).exists() for v in INTER_FILES.values())
+    if not ready and ns and not os.environ.get("IMZYY_SKIP_FONTS"):
+        try:
+            data = urllib.request.urlopen(INTER_URL, timeout=60).read()
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                found = {}
+                for n in z.namelist():
+                    base = n.rsplit("/", 1)[-1]
+                    if base in INTER_FILES and "ttf" in n.lower() and "variable" not in n.lower():
+                        found.setdefault(base, n)
+                if len(found) == len(INTER_FILES):
+                    font_dir.mkdir(parents=True, exist_ok=True)
+                    for base, target in INTER_FILES.items():
+                        (font_dir / target).write_bytes(z.read(found[base]))
+                    ready = True
+        except Exception as exc:  # network optional
+            print(f"fonts: Inter tidak diunduh ({exc}); pakai font sistem")
+    if ready and ns:
+        (hub / "ImzyyFonts.kt").write_text(
+            "package id.imzyy.xl\n\nimport androidx.compose.ui.text.font.Font\nimport androidx.compose.ui.text.font.FontFamily\n"
+            "import androidx.compose.ui.text.font.FontWeight\nimport " + ns + ".R\n\nobject ImzyyFonts {\n    val family: FontFamily = FontFamily(\n"
+            "        Font(R.font.inter_regular, FontWeight.Normal),\n        Font(R.font.inter_medium, FontWeight.Medium),\n"
+            "        Font(R.font.inter_semibold, FontWeight.SemiBold),\n        Font(R.font.inter_bold, FontWeight.Bold),\n"
+            "        Font(R.font.inter_bold, FontWeight.ExtraBold),\n    )\n}\n", encoding="utf-8")
+        print("fonts: Inter dipasang")
+    else:
+        (hub / "ImzyyFonts.kt").write_text(fallback, encoding="utf-8")
+    return "id.imzyy.xl.ImzyyFonts.family"
+
+
 def patch_typography(app: Path) -> None:
     theme_dir = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme"
     type_file = theme_dir / "Type.kt"
@@ -177,6 +235,7 @@ val Typography = Typography(
     labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.2.sp),
 )
 '''
+    typography = typography.replace("FontFamily.SansSerif", patch_fonts(app))
     type_file.write_text(typography, encoding="utf-8")
 
     # Strengthen explicit text weights without touching layout or state logic.
@@ -410,6 +469,59 @@ def patch_controls(app: Path) -> None:
     print("controls: look sensitivity, slop, long-press, touchpad + cursor hooks applied")
 
 
+def patch_input_sender(app: Path) -> None:
+    """Find the upstream key sender on MinecraftActivity and wire ImzyyInput.key() to it.
+    Falls back to Android KeyEvent dispatch when nothing usable is found."""
+    act = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt"
+    hub = app / "src/main/java/id/imzyy/xl/ImzyyInput.kt"
+    src = require_file(act)
+    skip = ("char", "text", "string", "codepoint", "unicode")
+    chosen = None
+    for m in re.finditer(r"(?:(private|protected|internal)\s+)?fun\s+(send\w*Key\w*)\s*\(([^)]*)\)", src):
+        name = m.group(2)
+        if any(s in name.lower() for s in skip):
+            continue
+        args, ok = [], True
+        for raw in [p.strip() for p in m.group(3).split(",") if p.strip()]:
+            pm = re.match(r"(?:vararg\s+)?(\w+)\s*:\s*([\w?.<>]+)\s*(=\s*.+)?$", raw)
+            if not pm:
+                ok = False
+                break
+            pn, pt, default = pm.group(1), pm.group(2), pm.group(3)
+            low = pn.lower()
+            if "scan" in low or "mod" in low:
+                args.append(f"{pn} = 0")
+            elif low in ("action", "pressed", "down", "state", "press", "isdown", "ispressed", "keydown"):
+                args.append(f"{pn} = down" if pt.startswith("Boolean") else f"{pn} = (if (down) 1 else 0)")
+            elif "key" in low or "code" in low:
+                use_droid = "android" in low or ("GLFW" not in src and "KEYCODE_" in src)
+                args.append(f"{pn} = {'droid' if use_droid else 'glfw'}")
+            elif default:
+                continue
+            else:
+                ok = False
+                break
+        if ok and args:
+            chosen = (m, name, args)
+            break
+    if chosen is None:
+        print("controls-pad: key sender tidak ditemukan; pakai KeyEvent dispatch")
+        return
+    m, name, args = chosen
+    if m.group(1) in ("private", "protected"):
+        src = src[: m.start(1)] + "internal" + src[m.end(1):]
+        act.write_text(src, encoding="utf-8")
+    text = hub.read_text(encoding="utf-8")
+    body_start = text.index("    fun key(")
+    body_end = text.index("    fun mouse(")
+    new_key = (
+        "    fun key(a: MinecraftActivity, glfw: Int, droid: Int, down: Boolean) {\n"
+        f"        a.{name}({', '.join(args)})\n    }}\n\n"
+    )
+    hub.write_text(text[:body_start] + new_key + text[body_end:], encoding="utf-8")
+    print(f"controls-pad: key sender = {name}({', '.join(args)})")
+
+
 def patch_lite(app: Path, repo: str, runtimes_out: Path | None) -> str:
     """Lite variant: keep only JRE 21 inside the APK. The other runtimes are moved to
     `runtimes_out` (published by CI as release assets) and downloaded on demand by the app.
@@ -606,6 +718,7 @@ def main() -> int:
     runtimes = patch_lite(app, args.repo, args.runtimes_out) if args.variant == "lite" else "{}"
     install_hub(app, args.repo, args.version, args.variant, runtimes)
     patch_runtime_hooks(app)
+    patch_input_sender(app)
     patch_root_branding(root)
     # Keep upstream Android namespace/applicationId intact until the Microsoft
     # OAuth redirect URI has been independently reconfigured and tested.

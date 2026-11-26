@@ -2,6 +2,7 @@ package id.imzyy.xl
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.RepeatMode
@@ -86,7 +87,7 @@ fun Pressable(
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(
         targetValue = if (pressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 420f),
         label = "press",
     )
     Box(
@@ -105,8 +106,14 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Ink.Surface)
-            .border(1.dp, Ink.Line, shape)
+            .background(Brush.verticalGradient(listOf(Color(0x2EFFFFFF), Color(0x0DFFFFFF))))
+            .drawBehind {
+                drawRect(
+                    Brush.verticalGradient(listOf(Color(0x24FFFFFF), Color(0x00FFFFFF)), startY = 0f, endY = size.height * 0.42f),
+                    size = Size(size.width, size.height * 0.42f),
+                )
+            }
+            .border(1.dp, Brush.linearGradient(listOf(Color(0x80FFFFFF), Color(0x14FFFFFF), Color(0x40FFFFFF))), shape)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
@@ -121,8 +128,17 @@ fun InkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
             Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(if (filled) Ink.White else Ink.Raised)
-                .border(1.dp, if (filled) Ink.White else Ink.Line, shape)
+                .background(
+                    if (filled) Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD4D4D4)))
+                    else Brush.verticalGradient(listOf(Color(0x2EFFFFFF), Color(0x0DFFFFFF))),
+                )
+                .drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(listOf(Color(if (filled) 0x66FFFFFF else 0x24FFFFFF), Color(0x00FFFFFF)), startY = 0f, endY = size.height * 0.5f),
+                        size = Size(size.width, size.height * 0.5f),
+                    )
+                }
+                .border(1.dp, Brush.linearGradient(listOf(Color(0xB3FFFFFF), Color(0x1FFFFFFF), Color(0x66FFFFFF))), shape)
                 .padding(vertical = 14.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -139,7 +155,7 @@ fun InkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
 
 @Composable
 fun Chip(text: String, selected: Boolean, compact: Boolean = false, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (selected) Ink.White else Ink.Raised, tween(220), label = "chipbg")
+    val bg by animateColorAsState(if (selected) Ink.White else Color(0x1AFFFFFF), tween(220), label = "chipbg")
     val fg by animateColorAsState(if (selected) Ink.Black else Ink.Sub, tween(220), label = "chipfg")
     val shape = RoundedCornerShape(50)
     Pressable(onClick = onClick) {
@@ -147,7 +163,13 @@ fun Chip(text: String, selected: Boolean, compact: Boolean = false, onClick: () 
             Modifier
                 .clip(shape)
                 .background(bg)
-                .border(1.dp, Ink.Line, shape)
+                .drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x00FFFFFF)), startY = 0f, endY = size.height * 0.55f),
+                        size = Size(size.width, size.height * 0.55f),
+                    )
+                }
+                .border(1.dp, Brush.linearGradient(listOf(Color(0x99FFFFFF), Color(0x14FFFFFF), Color(0x4DFFFFFF))), shape)
                 .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = 8.dp),
         ) {
             Text(text, color = fg, fontSize = if (compact) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold)
@@ -164,7 +186,7 @@ fun Reveal(index: Int, content: @Composable () -> Unit) {
     }
     AnimatedVisibility(
         visible = shown,
-        enter = fadeIn(tween(450)) + slideInVertically(tween(450)) { it / 8 },
+        enter = fadeIn(tween(380, easing = FastOutSlowInEasing)) + slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 10 },
     ) { content() }
 }
 

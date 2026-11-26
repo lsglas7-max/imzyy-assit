@@ -7,6 +7,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -62,7 +66,8 @@ class ImzyyHubActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
-        setContent { HubApp() }
+        ImzyyWindow.install(application)
+        setContent { ProvideTextStyle(TextStyle(fontFamily = ImzyyFonts.family)) { HubApp() } }
     }
 }
 
@@ -80,6 +85,16 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     var mrUri by mutableStateOf<Uri?>(null)
     var smooth by mutableStateOf(prefs.getBoolean("smooth", false))
     var texLevel by mutableStateOf(1)
+    var antiLag by mutableStateOf(prefs.getBoolean("antilag", false))
+    /** 0 = low, 1 = mid, 2 = flagship (by total RAM). */
+    val tier: Int = run {
+        val am = ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        val gb = mi.totalMem / 1073741824.0
+        if (am.isLowRamDevice || gb <= 4.5) 0 else if (gb <= 8.5) 1 else 2
+    }
+    val tierName: String get() = listOf("LOW", "MID", "FLAGSHIP")[tier]
 
     val logs = mutableStateListOf<String>()
     val instances = mutableStateListOf<InstanceMeta>()
@@ -257,6 +272,15 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         } else say("Anti drop FPS & stutter dimatikan. Pakai KEMBALIKAN OPTIONS ASLI jika mau membatalkan opsi yang sudah ditulis.")
     }
 
+    fun switchAntiLag(on: Boolean) {
+        antiLag = on
+        prefs.edit().putBoolean("antilag", on).apply()
+        if (on) runJob {
+            val n = FpsTuner.applyValues(needTarget(), FpsTuner.lagValues(tier))
+            say("✓ Anti lag gerak aktif untuk HP $tierName ($n opsi). Dipasang ulang otomatis tiap PLAY.")
+        } else say("Anti lag gerak dimatikan.")
+    }
+
     fun installVoxy() = runJob {
         val l = needLoader()
         if (l != "fabric" && l != "quilt") error("Voxy hanya untuk instance Fabric/Quilt")
@@ -296,6 +320,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
 
     fun play() {
         if (smooth) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.SMOOTH) } }
+        if (antiLag) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.lagValues(tier)) } }
         liteAutoTune()
         ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
     }
@@ -306,7 +331,7 @@ fun HubApp() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val s = remember { HubState(ctx, scope) }
-    LaunchedEffect(Unit) { s.refreshInstances(); ImzyyControls.refresh(ctx, force = true) }
+    LaunchedEffect(Unit) { s.refreshInstances(); ImzyyControls.refresh(ctx, force = true); ImzyyPad.load(ctx) }
 
     Box(Modifier.fillMaxSize().background(Ink.Black)) {
         AnimatedBackdrop()
@@ -496,6 +521,18 @@ private fun BoostTab(s: HubState) {
             }
         }
         item {
+            Reveal(4) {
+                Panel {
+                    Text("Cegah gerak sedikit lag", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("HP kamu terdeteksi ${s.tierName}. " + (if (s.tier == 2) "Flagship tidak wajib, tapi boleh diaktifkan agar lebih mulus." else "Disarankan AKTIF: render distance, bayangan, AO dan awan diringankan supaya gerak tidak patah-patah."), color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("AKTIF", s.antiLag) { s.switchAntiLag(true) }
+                        Chip("MATI", !s.antiLag) { s.switchAntiLag(false) }
+                    }
+                }
+            }
+        }
+        item {
             Reveal(5) {
                 Panel {
                     Text("Voxy (LOD jarak jauh)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -633,6 +670,53 @@ private fun ControlsTab(s: HubState) {
                     Text("Atur posisi, ukuran, dan tombol di editor bawaan. Perubahan kontrol di atas berlaku saat game dimulai/dibuka lagi.", color = Ink.Sub, fontSize = 12.sp)
                     InkButton("BUKA EDITOR TOMBOL", { s.openKeyEditor() })
                     InkButton("RESET KONTROL KE DEFAULT", { ImzyyControls.reset(s.ctx); s.ctlTick++ }, filled = false)
+                }
+            }
+        }
+        item {
+            Reveal(4) {
+                Panel {
+                    Text("Tombol IMZYY (di dalam game)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("WASD, klik kiri/kanan, dan tombol lain muncul di game, termasuk sebelum membuat world. Di dalam game ketuk tombol PAD (atas) lalu geser tombol untuk mengatur posisi, ketuk SIMPAN.", color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("AKTIF", ImzyyPad.enabled) { ImzyyPad.enabled = true; ImzyyPad.save(s.ctx) }
+                        Chip("MATI", !ImzyyPad.enabled) { ImzyyPad.enabled = false; ImzyyPad.save(s.ctx) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("SELALU TAMPIL", ImzyyPad.alwaysShow) { ImzyyPad.alwaysShow = true; ImzyyPad.save(s.ctx) }
+                        Chip("SAAT MENU SAJA", !ImzyyPad.alwaysShow) { ImzyyPad.alwaysShow = false; ImzyyPad.save(s.ctx) }
+                    }
+                    SliderRow("Ukuran tombol", "%.2f".format(ImzyyPad.size) + "x", ImzyyPad.size, 0.7f, 1.6f) { ImzyyPad.size = it; ImzyyPad.save(s.ctx) }
+                    SliderRow("Kepekatan tombol", "%.0f".format(ImzyyPad.opacity * 100) + "%", ImzyyPad.opacity, 0.3f, 1f) { ImzyyPad.opacity = it; ImzyyPad.save(s.ctx) }
+                }
+            }
+        }
+        item {
+            Reveal(5) {
+                Panel {
+                    Text("Daftar tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Ketuk mode untuk mengganti: TEKAN (aktif selagi ditekan), TAHAN (ketuk sekali = terkunci, ketuk lagi = lepas), KLIK / TAHAN LAMA (ketuk = klik, tahan lama = terkunci).", color = Ink.Sub, fontSize = 12.sp)
+                    for (b in ImzyyPad.buttons.toList()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(b.key, color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Chip(ImzyyPad.modeName(b.mode), true, compact = true) { ImzyyPad.cycleMode(s.ctx, b.id) }
+                            Chip("HAPUS", false, compact = true) { ImzyyPad.remove(s.ctx, b.id) }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Reveal(6) {
+                Panel {
+                    Text("Tambah tombol", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        for (k in PadKeys.order) Chip(k, false, compact = true) { ImzyyPad.add(s.ctx, k) }
+                    }
+                    InkButton("RESET TOMBOL IMZYY", { ImzyyPad.reset(s.ctx) }, filled = false)
                 }
             }
         }

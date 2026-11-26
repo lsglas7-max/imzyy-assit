@@ -42,7 +42,7 @@ val FlameLight = Color(0xFF7CC9FF)
 val FlameDark = Color(0xFF0B4A8F)
 ''')
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text(
-            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n}\n")
+            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
         (comp / "MinecraftSurface.kt").write_text(
@@ -102,6 +102,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         # CI exports IMZYY_VARIANT=lite for the whole job, so the test must never inherit it:
         # every call pins --variant explicitly and runs with a clean environment.
         clean_env = {k: v for k, v in os.environ.items() if not k.startswith("IMZYY_")}
+        clean_env["IMZYY_SKIP_FONTS"] = "1"
         subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True, env=clean_env)
         subprocess.run([sys.executable, str(PATCHER)] + lite_args, check=True, env=clean_env)
         subprocess.run([sys.executable, str(PATCHER), "--engine-dir", str(full_root), "--repo", "owner/imzyy", "--variant", "full"], check=True, env=clean_env)
@@ -124,7 +125,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert 'resolutionScalePercent = 100' in settings_screen
         assert settings_screen.count("IMZYY PERFORMANCE PROFILES") == 1
         typography = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/theme/Type.kt").read_text()
-        assert "FontWeight.ExtraBold" in typography and "FontFamily.SansSerif" in typography
+        assert "FontWeight.ExtraBold" in typography and "ImzyyFonts.family" in typography
         assert "FontWeight.SemiBold" in typography
         assert (root / "settings.gradle.kts").read_text() == 'rootProject.name = "IMZYY XL Launcher"'
         palette = theme.read_text()
@@ -156,9 +157,13 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "ImzyyRuntimes.installed(context, it)" in preparer and "ImzyyRuntimes.ensure(context, requestedMajor)" in preparer
         assert "import id.imzyy.xl.ImzyyRuntimes" in preparer and preparer.count("ImzyyRuntimes.ensure") == 1
         hub_dir = app / "src/main/java/id/imzyy/xl"
+        _inp = (hub_dir / "ImzyyInput.kt").read_text()
+        assert "a.sendKeyPress(key = glfw, scancode = 0, action = (if (down) 1 else 0), mods = 0)" in _inp, _inp
+        assert "internal fun sendKeyPress" in (base_ui / "MinecraftActivity.kt").read_text()
+        assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
         assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt"):
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg

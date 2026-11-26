@@ -41,6 +41,16 @@ object FpsTuner {
         "mipmapLevels" to "1", "particles" to "2", "simulationDistance" to "6", "improvedTransparency" to "false",
     )
 
+    /** Anti micro-lag while moving. tier: 0 low, 1 mid, 2 flagship (only the gentle part). */
+    fun lagValues(tier: Int): List<Pair<String, String>> {
+        val base = listOf("enableVsync" to "false", "maxFps" to "60", "entityShadows" to "false", "ao" to "false", "renderClouds" to "false", "graphicsMode" to "0")
+        return when (tier) {
+            0 -> base + listOf("renderDistance" to "5", "simulationDistance" to "5", "entityDistanceScaling" to "0.5", "particles" to "2")
+            1 -> base + listOf("renderDistance" to "8", "simulationDistance" to "6")
+            else -> listOf("enableVsync" to "false", "entityShadows" to "false")
+        }
+    }
+
     fun apply(instance: File, profile: Profile): Int = applyValues(instance, profile.values)
 
     fun applyValues(instance: File, values: List<Pair<String, String>>): Int {
