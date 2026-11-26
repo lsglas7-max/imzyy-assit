@@ -41,87 +41,8 @@ val BgItem = Color(0xFF08101B)
 val FlameLight = Color(0xFF7CC9FF)
 val FlameDark = Color(0xFF0B4A8F)
 ''')
-        (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MainActivity.kt").write_text("""
-import kr.co.donghyun.flamelauncher.BuildConfig
-import kr.co.donghyun.flamelauncher.data.setting.SettingManager
-import kr.co.donghyun.flamelauncher.data.update.GithubRelease
-import kr.co.donghyun.flamelauncher.data.update.GithubUpdateChecker
-import kr.co.donghyun.flamelauncher.presentation.ui.components.UpdateAvailableDialog
-class MainActivity {
-    fun render() {
-        // ── GitHub 릴리스 기반 업데이트 자동 감지 ──
-        var updateRelease by remember { mutableStateOf<GithubRelease?>(null) }
-        LaunchedEffect(Unit) {
-            val skipped = SettingManager.load(this@MainActivity).skippedUpdateVersion
-            val release = GithubUpdateChecker.fetchUpdate(BuildConfig.VERSION_NAME)
-            if (release != null && release.tagName != skipped) {
-                updateRelease = release
-            }
-        }
-        MainScreen(
-            versions = versions,
-        )
-
-                updateRelease?.let { release ->
-                    UpdateAvailableDialog(
-                        release = release,
-                        onDownload = { updateRelease = null },
-                        onLater = { updateRelease = null },
-                        onSkip = {
-                            val cur = SettingManager.load(this@MainActivity)
-                            SettingManager.save(this@MainActivity, cur.copy(skippedUpdateVersion = release.tagName))
-                            updateRelease = null
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-""")
         (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MinecraftActivity.kt").write_text(
-            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n"
-            "    private var jvmStarted = false\n"
-            "    private var currentSurface: Surface? = null\n"
-            "    private var instanceDir: String? = null\n"
-            "    private fun fakeJvmArgs() {\n"
-            "        val jvmSettings = JvmSettingsManager.load(this)\n"
-            "        val metaJvmArgsRaw = emptyList<String>()\n"
-            "        val metaJvmArgs: Array<String> = metaJvmArgsRaw.map { arg ->\n"
-            "            if (arg.startsWith(\"-DignoreList=\")) {\n"
-            "                val needed = listOf(\"ForgeAutoRenamingTool\", \"BinaryPatcher\").filterNot { arg.endsWith(it) }\n"
-            "                if (needed.isNotEmpty()) arg + \",\" + needed.joinToString(\",\") else arg\n"
-            "            } else arg\n"
-            "        }.toTypedArray()\n"
-            "// upstream moved this explanatory comment away from the array declaration\n"
-            "        val modernForgeArgs = emptyArray<String>()\n"
-            "        val jvmArgs = emptyArray<String>() +\n"
-            "                jvmSettings.toJvmArgArray() +\n"
-            "                modernForgeArgs +\n"
-            "                metaJvmArgs\n"
-            "        try {\n"
-            "            launchJvm(jvmArgs)\n"
-            "        } catch (e: Exception) {\n"
-            "            Log.e(\"FLAME_LAUNCHER\", \"MC 실행 예외: ${e.message}\", e)\n"
-            "        }\n"
-            "    }\n"
-            "    private var customGameDir: String? = null\n"
-            "    private fun fakeGlfwStart(surface: Surface) { if (!jvmStarted) { jvmStarted = true; setupAndLaunch(surface) } }\n"
-            "    private fun fakeSdlStart(surface: Surface) { if (jvmStarted) return; jvmStarted = true; setupAndLaunch(surface) }\n"
-            "    private fun fakeRetryStart(surface: Surface) { setupAndLaunch(surface) }\n"
-            "    private fun surfaceCreated(surface: Surface) {\n"
-            "        currentSurface = surface\n"
-            "        if (!jvmStarted) {\n"
-            "            jvmStarted = true\n"
-            "            setupAndLaunch(surface)\n"
-            "        } else {\n"
-            "            try {\n"
-            "                System.loadLibrary(\"flamejvm\")\n"
-            "                nativeSetupBridgeWindow(surface)\n"
-            "            } catch (e: Exception) {}\n"
-            "        }\n"
-            "    }\n"
-            "    private fun setupAndLaunch(surface: Surface) {}\n}\n")
+            "package kr.co.donghyun.flamelauncher.presentation\n\nclass MinecraftActivity {\n    private var gameControllerView: GameControllerView? = null\n    internal val MOUSE_SENSITIVITY = 1.5f\n    private fun sendKeyPress(key: Int, scancode: Int = 0, action: Int, mods: Int = 0) {}\n}\n")
         comp = app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/components"
         comp.mkdir(parents=True, exist_ok=True)
         (comp / "MinecraftSurface.kt").write_text(
@@ -193,13 +114,6 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert (app / "src/main/res/drawable/imzyy_launcher_foreground.xml").is_file()
         assert (app / "src/main/res/drawable/img_logo.xml").is_file()
         assert not (app / "src/main/res/drawable/img_logo.png").exists()
-        main_activity = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/MainActivity.kt").read_text()
-        assert "GithubUpdateChecker.fetchUpdate" not in main_activity
-        assert "UpdateAvailableDialog(" not in main_activity
-        assert "IMZYY: release notes removed" in main_activity
-        hub_source = (ROOT / "android-overlay/kotlin/ImzyyHubActivity.kt").read_text()
-        assert "private fun liteAutoTune()" not in hub_source
-        assert "val prep = withContext(Dispatchers.IO)" in hub_source
         main_screen = (app / "src/main/java/kr/co/donghyun/flamelauncher/presentation/ui/screen/MainScreen.kt").read_text()
         assert '"IMZYY"' in main_screen and '"IMZYY XL"' in main_screen
         assert ".height(58.dp)" in main_screen and "fontSize = 16.sp" in main_screen
@@ -246,47 +160,10 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         _inp = (hub_dir / "ImzyyInput.kt").read_text()
         assert "a.sendKeyPress(key = glfw, scancode = 0, action = (if (down) 1 else 0), mods = 0)" in _inp, _inp
         assert "internal fun sendKeyPress" in (base_ui / "MinecraftActivity.kt").read_text()
-        mc_activity = (base_ui / "MinecraftActivity.kt").read_text()
-        assert "ImzyyAssets.repair(" in mc_activity
-        assert "// IMZYY: device-aware heap cap" in mc_activity
-        assert "imzyyLaunchSettings.toJvmArgArray(" in mc_activity
-        assert "val imzyyMetaJvmArgs = metaJvmArgs.filterNot" in mc_activity
-        assert mc_activity.count("imzyyMetaJvmArgs") >= 2 and "+\n                metaJvmArgs" not in mc_activity
-        assert "metaJvmArgsRaw.map { arg ->" in mc_activity
-        assert "val modernForgeArgs = emptyArray<String>()" in mc_activity
-        assert "imzyyTotalRamMb <= 4608L -> 1280" in mc_activity
-        assert 'catch (e: Throwable)' in mc_activity and 'MC 실행 예외:' in mc_activity
-        assert "                    instanceDir," in mc_activity
-        assert "                    customGameDir," in mc_activity
-        assert "Asset Minecraft belum siap" in mc_activity
-        assert 'coba lagi.\\n\\n" +' in mc_activity, "retry dialog must use escaped Kotlin newline sequences"
-        assert 'setPositiveButton("COBA LAGI")' in mc_activity
-        assert "imzyyAssetRepairCompleted = true" in mc_activity
-        assert "else if (imzyyAssetRepairCompleted)" in mc_activity
-        assert "setupAndLaunchAfterAssetRepair(launchSurface)" in mc_activity
-        assert "private fun setupAndLaunch(surface: Surface)" in mc_activity
-        assert "private fun setupAndLaunchAfterAssetRepair(surface: Surface)" in mc_activity
-        assert mc_activity.count("setupAndLaunchAfterAssetRepair(launchSurface)") == 1
-        assert mc_activity.count("setupAndLaunch(surface)") == 4  # three fixtures plus GLFW surface-created path
-        assert "import id.imzyy.xl.ImzyyAssets" in mc_activity
-        assert "import kotlinx.coroutines.withContext" in mc_activity
         assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
-        pad_source = (hub_dir / "ImzyyPad.kt").read_text()
-        assert "fun movePreview(id: String" in pad_source
-        assets_source = (hub_dir / "ImzyyAssets.kt").read_text()
-        assert "val searchRoots = listOf(instanceBase, externalRoot, context.filesDir)" in assets_source
-        assert "val assetsRoot = searchRoots" in assets_source
-        hub_source = (hub_dir / "ImzyyHubActivity.kt").read_text()
-        assert "private fun PadLayoutEditor(s: HubState)" in hub_source
-        assert "EDITOR TOMBOL LOBI" in hub_source
-        assert ".aspectRatio(20f / 9f)" in hub_source
-        assert "detectDragGestures(" in hub_source and "ImzyyPad.movePreview" in hub_source
-        assert "pointerInput(button.id, widthPx, heightPx, layoutRevision)" in hub_source
-        assert "val minX = (buttonSizePx / (2f * widthPx))" in hub_source
-        assert 'InkButton("SIMPAN POSISI"' in hub_source
-        assert "switchSmooth" in hub_source and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
-        assert "val prep = withContext(Dispatchers.IO)" in (hub_dir / "ImzyyHubActivity.kt").read_text()
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt", "ImzyyAssets.kt"):
+        assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
+        assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg
@@ -309,7 +186,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
     assert (ROOT / "scripts/build-imzyy.sh").is_file()
     assert not (ROOT / "scripts/build-amethyst.sh").exists()
     assert not (ROOT / "scripts/prepare-amethyst.py").exists()
-    print("IMZYY integration tests passed: async PLAY/ANR guard, release-notes removal, RAM-aware heap cap, launch error capture, per-instance asset repair, GLFW rebind barrier, lobby pad editor, branding, idempotency and ARM64.")
+    print("IMZYY integration tests passed: single-app activity check, branding, premium typography, performance profiles, adaptive icon, idempotency, ARM64 and no Amethyst build path.")
     return 0
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
-build/
+.build/
 .gradle/
 local.properties
-.idea/
+output/
 *.iml
+.idea/
+.DS_Store

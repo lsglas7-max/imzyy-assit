@@ -1,121 +1,119 @@
-# IMZYY KNOX Game Turbo v10.0
+# IMZYY XL Launcher — Premium Android ARM64 Edition (v3)
 
-## Developer
-- Pembuat Game Turbo Samsung
-- Credi By Imzyy
-- WhatsApp: https://wa.me/6281373070063
+IMZYY XL Launcher is a single Android application for **Minecraft: Java Edition**. The project embeds the complete upstream JVM/native launch stack and Minecraft game activity in the same APK. Users install and open **IMZYY XL Launcher only**; there is no second launcher APK to install or hand off to. The game activity runs as an isolated process inside the same Android application for stability, not as another launcher app.
 
-## Audio Studio v8.6
-- LIVE microphone monitor with voice FX.
-- LIVE mixer: microphone + permitted Android internal playback capture (Android 10+ / MediaProjection consent).
-- Switch voice FX presets during LIVE without restarting the processing thread.
-- Internal capture is optional and depends on the source app's playback-capture policy.
-- Output is local monitoring to the device audio route/headset. It is not a virtual microphone injected into a game.
+## What is inside
 
-## Virtual microphone limitation
-Stock Android's public SDK does not expose a general API for an ordinary app to replace another app's microphone input. Real in-game virtual-mic routing requires a separately engineered, device/OS-specific privileged backend such as a compatible rooted audio module or custom ROM/audio HAL integration. See `VIRTUAL_MIC_STATUS.md`.
+The selected open-source engine currently documents:
 
-## v10.0 — Live Monitor, Fan UI, dan Network
+- Minecraft Java versions from Alpha/Beta through current releases.
+- Vanilla, Fabric, Forge, NeoForge and Quilt.
+- Mod and modpack discovery/installation through CurseForge and Modrinth, including dependencies.
+- Version-matched OpenJDK runtimes selected automatically.
+- Zink, Krypton, GL4ES and MobileGlues rendering paths, with hardware-dependent fallback behavior.
+- Touch controls, editable on-screen buttons, hardware keyboard, mouse and gamepad support.
+- ARM64 Android builds.
 
-- Home diringkas dengan pintasan `Monitor live` dan `Jendela mengambang`.
-- Monitor overlay menampilkan VSYNC/frame callback monitor, CPU, GPU, suhu, dan refresh rate layar; panel bisa digeser dan posisi tersimpan. Ketuk panel untuk berganti antara mode angka dan mode kipas.
-- CPU usage dihitung dari delta `/proc/stat`; GPU usage memakai busy counter kernel bila tersedia. Nilai dengan awalan `~` adalah estimasi clock-ratio saat counter beban tidak diekspos oleh firmware.
-- Suhu mencoba thermal zone SoC/CPU/GPU yang diekspos kernel, lalu fallback ke sensor baterai. Sumber suhu ditampilkan agar tidak disalahartikan sebagai suhu CPU bila hanya sensor baterai yang tersedia.
-- Kipas visual diperbesar dan animasinya memakai akselerasi, perubahan kecepatan, serta pulse glow. RPM fisik hanya ditampilkan bila sensor sungguhan tersedia; animasi bukan kipas fisik.
-- Network check mengikat pengukuran TCP ke network aktif, memvalidasi koneksi Internet, memberi ringkasan Wi-Fi/seluler, dan menguji DNS-over-TLS dengan handshake TLS. Ini bukan pengubah prioritas paket atau ping internal server game.
-- Jendela aplikasi menggunakan freeform launch bounds. Keberhasilannya tetap bergantung dukungan firmware Android/OEM dan opsi pengembang perangkat.
+OptiFine is not listed as a first-class integrated loader by this upstream. Do not assume it is guaranteed; use the upstream-supported loader and mod paths.
 
-### Batas pengukuran Android biasa
+## IMZYY XL Lite
 
-FPS game lain tidak selalu tersedia untuk aplikasi biasa. Angka VSYNC/frame callback di monitor adalah cadence overlay/display, bukan jaminan FPS render game. FPS render game membutuhkan API/integrasi dari game atau akses sistem yang tidak tersedia pada semua perangkat. Begitu juga busy counter GPU dan sensor thermal: bila firmware tidak mengeksposnya, aplikasi menandai nilai clock-ratio sebagai estimasi dan memakai fallback suhu baterai.
+Lite is a build variant of the same project (`IMZYY_VARIANT=lite`, workflow `android-lite.yml`).
 
-## Build APK
-Run `./gradlew assembleDebug` with JDK 17 and a compatible Android SDK, or use the GitHub Actions workflow `Build IMZYY KNOX Game Turbo APK`.
+- **Size**: only **Java 21** stays inside the APK. Java 8 / 17 / 25 (about 157 MB) are stripped from the APK, published by CI as assets of the `runtimes` GitHub release, and downloaded once, SHA-256 verified, when needed (HOME > Runtime Java, or automatically on game start when not on the UI thread). Estimated APK: roughly 105-120 MB; the build prints the real number and warns above 150 MB.
+- **All Minecraft versions**: the launcher picks the Java version per Minecraft version. Old versions (<= 1.16) need Java 8, 1.18-1.20.4 need Java 17, 26.x needs Java 25: download these once in HOME before playing. If a runtime is missing the launcher falls back to the bundled Java 21, which works for most modern versions but not for old/Forge-heavy ones.
+- **Mods**: IMPORT accepts `.mrpack`, a single `.jar`, or a `.zip` that contains mods (jars are found at any depth and flattened into `mods/`; nothing else is extracted).
+- **Voxy** is an opt-in entry in the BOOST pack (Fabric + Sodium only, needs OpenGL 4.6; often unsupported on phones).
+- **Controls** are unchanged: KONTROL tab + the upstream button editor.
+- **Look**: animated shimmer title, pulsing PLAY button, drifting particles, monochrome palette.
 
-## v8.8 — Floating Window Stability
+## v3: monochrome UI + IMZYY Hub
 
-- Floating hub starts as a `SPECIAL_USE` foreground service on Android 14+ instead of requesting microphone foreground access merely because microphone permission was previously granted.
-- Microphone foreground access is promoted only when the user starts recording or LIVE voice features.
-- Removed the delayed `AlarmManager` restart from `onTaskRemoved`; Android background-start restrictions could otherwise cause a foreground-service restart loop on newer versions.
-- The floating hub remains configured with `stopWithTask=false` and `START_STICKY` for normal lifecycle recovery.
+- **Black / white theme** across the upstream screens (palette patch) with an adjusted contrast pass so white-on-accent button text becomes black.
+- **IMZYY Hub** is the new launcher entry screen (animated grid backdrop, staggered reveals, spring press feedback). **PLAY** opens the upstream launcher activity, which is untouched and still in the same APK.
+  - **BOOST**: one-tap `options.txt` profiles (Hemat FPS / Seimbang / Kualitas, original backed up) and a performance mod pack (Sodium or Embeddium, Lithium, FerriteCore, ModernFix, ImmediatelyFast, Entity Culling, Dynamic FPS) resolved live from Modrinth for the chosen Minecraft version + loader, with required dependencies, SHA-hash verification and a clean uninstall.
+  - **MODS**: search Modrinth filtered by version/loader and install into the instance.
+  - **IMPORT**: `.mrpack` (Modrinth format v1) importer: hash-verified parallel downloads from allow-listed hosts, zip-slip-safe overrides/client-overrides extraction. Create the matching instance (version + loader) in the launcher first, then pick its folder.
+  - **GitHub card**: repo/releases buttons and a "latest release" check (needs `IMZYY_GITHUB_REPO`, set automatically by CI).
+- Sodium/Embeddium need an OpenGL 3.2+ path (Zink, Krypton, MobileGlues); they crash on GL4ES. Switch the renderer in the existing renderer settings.
+- **KONTROL tab + in-game hooks** (patched into the real upstream input code, verified against its source):
+  - camera sensitivity (replaces the fixed 1.5 constant), drag slop and long-press delay, all live-tunable;
+  - **virtual mouse / touchpad mode** for menus and inventory: drag moves a visible cursor, tap = left click, long press or two-finger tap = right click (gameplay keeps normal camera control);
+  - on-screen button colors converted to monochrome, and a shortcut to the upstream button-layout editor.
+  - Settings travel via `filesDir/imzyy_controls.json` because the game runs in its own `:minecraft` process; they apply when the game (re)starts.
+- Instances in the Hub come straight from the launcher's own instance list (Minecraft version and loader are read automatically), so mod install/FPS pack/.mrpack always match the selected instance.
+- Local `.mrpack` import checks the pack's Minecraft version and loader against the selected instance and refuses mismatches.
 
-Note: Android/OEM battery management can still stop background services; users may need to allow unrestricted battery use for the app.
+## GitHub
 
+```bash
+gh auth login
+bash scripts/github-setup.sh imzyy-xl-launcher public --release v3.0.0
+```
 
-## v8.8 Floating Window stability
-- Keeps the launcher activity foreground until the overlay attaches instead of immediately backgrounding it.
-- Rebuilds a detached bubble view rather than silently retrying a possibly-invalid WindowManager view.
-- Logs overlay attach and foreground-promotion failures for diagnosis.
-- Restores a previously open panel after a detach when overlay permission is still granted.
+Pushing to `main` builds the APK as an artifact; pushing a `v*` tag also publishes a GitHub Release with the APK, build info and corresponding source.
 
+## Built-in performance profiles
 
-## v8.9
+The JVM/game settings page includes three working one-tap profiles. They change existing engine settings; they do not inject undocumented JVM arguments:
 
-### IMZYY Cleaner tetap hidup
-- `AccessibilityGuard`: memantau daftar aksesibilitas sistem dan menyalakan ulang Cleaner seketika bila hilang (butuh izin adb sekali, permanen):
-  `adb shell pm grant com.imzyyknox.gameturbo android.permission.WRITE_SECURE_SETTINGS`
-- `BootReceiver`: Cleaner dan hub dinyalakan lagi setelah reboot atau update app.
-- Tanpa izin adb: notifikasi "IMZYY Cleaner mati" yang langsung membuka halaman detail layanan (Android 14+).
-- Android 13+ APK non-Play Store: Info Aplikasi > titik tiga > "Izinkan setelan terbatas", lalu atur baterai ke "Tanpa batasan" dan matikan "Pause app activity if unused".
-- Layanan tidak memproses event sama sekali, hanya bekerja saat diminta, jadi tidak ada kode yang bisa crash di jalur event.
+| Profile | Heap limit policy | Render scale | GC |
+|---|---:|---:|---|
+| FPS | 45% of detected heap ceiling, capped at 2048 MB | 75% | G1GC |
+| Balanced | 58% of detected heap ceiling, capped at 3072 MB | 85% | G1GC |
+| Visual | 68% of detected heap ceiling, capped at 4096 MB | 100% | G1GC |
 
-### Izin sekali, fitur tinggal toggle
-- Toggle yang butuh izin membuka halamannya sekali; begitu izin diberikan, fitur menyala otomatis (Battery Balance, Touch, Bright, DND, Cleaner). Izin yang sudah ada tidak diminta lagi.
+The heap ceiling is derived from device RAM and the preset keeps memory headroom for Android, textures and native renderer allocations. These are starting points, not universal FPS guarantees. The best configuration depends on the phone's GPU/driver, RAM pressure, thermal state, Minecraft version, mods and renderer. Settings take effect on the next game launch. Renderer choices remain available in the existing renderer settings; the launcher does not force unsupported GPU flags.
 
-### RAM dan cache Android 14 sampai 17
-- `RamManager`: killBackgroundProcesses hanya berlaku untuk proses sendiri sejak Android 14, jadi jalurnya Force Stop lewat Cleaner untuk app yang dipakai 45 menit terakhir (bukan app depan, launcher, keyboard, sistem, atau yang sudah berhenti), lalu kembali ke game. Jumlah maksimal diatur di TOOLS (4/8/12).
-- `CacheEngine`: dua putaran pelepasan cache sistem, ditambah sapu cache eksternal dan `.thumbnails`. Pemindaian cache semua app berjalan paralel.
+### Renderer starting points
 
-### Tab FAN
-- Dua kipas besar CPU dan GPU dengan putaran sesuai beban, gauge, bar per inti, dan frekuensi live bila kernel mengizinkan. Bila diblokir firmware, ditandai EST.
-- Suara kipas "bum bum stututu" disintesis di kode (tanpa file audio) dan diputar saat hub dibuka.
+- **Zink**: try first on a modern Vulkan-capable GPU for Minecraft 1.17+ and shader-capable setups. The engine documents a device-dependent fallback path.
+- **Krypton**: a broad GLES 3.x path when Zink is unstable or unavailable.
+- **GL4ES**: compatibility path for older Minecraft versions and devices that cannot run Zink.
+- **MobileGlues**: another OpenGL/GLES path exposed by the upstream engine; verify compatibility with the exact game version and device.
 
-### Floating window
-- Mode TOMBOL atau SIDEBAR, ukuran kecil/sedang/besar, menempel ke tepi, mengikuti rotasi layar.
-- Zona aman gestur: jarak dari tepi back-gesture, di luar status bar dan area home-gesture, plus `setSystemGestureExclusionRects`.
+Do not stack multiple renderer drivers or copy random JVM flags from PC guides. Change one setting at a time and keep a working profile so regressions can be isolated.
 
+## Account and game files
 
-## v9.0
+- The launcher application is free/open-source; Minecraft Java Edition still requires a valid Microsoft account with a Minecraft Java entitlement for official online play.
+- Microsoft sign-in and game-file downloads are handled by the upstream engine. This project does not bypass authentication or distribute Minecraft game files.
+- The upstream Android namespace/application ID are intentionally preserved for now because Microsoft OAuth callback registration may depend on that identity. The visible app branding and artifact name are IMZYY XL Launcher.
 
-### Perbaikan bug
-- Tombol OPTIMASI GAME tidak lagi membuka halaman "Ubah pengaturan sistem" berulang-ulang. Penyebab: bila sistem menolak kunci refresh rate padahal izin sudah aktif, kode salah menganggap izin belum ada. Sekarang halaman izin hanya dibuka bila izin memang belum aktif; bila sistem menolak, fitur memakai mode refresh per jendela dan status menampilkan alasannya.
-- `AccessibilityGuard`: memakai string action `android.settings.ACCESSIBILITY_DETAILS_SETTINGS` karena konstanta `Settings.ACTION_ACCESSIBILITY_DETAIL_SETTINGS` tidak ada di SDK publik (penyebab build gagal).
+## Build with GitHub Actions
 
-### Tab FAN
-- SUARA MESIN: suara mesin V8 disintesis real-time di kode (bukan rekaman, tanpa file audio). Berputar terus selama dinyalakan, juga saat panel ditutup. Urutan: starter, mesin menyala, idle, lalu RPM naik-turun mengikuti beban CPU/GPU. Volume PELAN/SEDANG/KERAS.
-- FAN OPTIMIZER: saat dinyalakan langsung optimasi sekali (GAME SAJA = optimasi game, SEMUA APP = optimalkan ponsel), lalu otomatis trim RAM bila beban >72% atau RAM bebas <18% (jeda minimal 2,5 menit). Mode SEMUA APP juga membersihkan cache semua aplikasi tiap 10 menit.
-- TES MESIN memutar mesin 4,5 detik; BUM BUM memutar suara spin-up lama; SUARA SAAT BUKA tetap ada.
+1. Upload the contents of this ZIP to the root of a GitHub repository.
+2. Push to `main` or `master`, or run **Actions → Build IMZYY XL Launcher (ARM64)** manually.
+3. Download the artifact `IMZYY-XL-Launcher-ARM64-debug`.
+4. It contains the debug APK, build provenance and corresponding patched upstream source archive.
 
-### Floating panel
-- Menu bawah jadi satu baris rapi berukuran sama, bisa digeser, dengan urutan logis: HOME, FPS, GPU, NET, FAN, CACHE, JENDELA, TOOLS, STYLE, VOICE. Menu aktif otomatis tergulir ke tengah.
+## Build locally
 
+Requirements: Git, Python 3, JDK 17, Android SDK platform 36, Android build-tools 36.0.0, NDK 27.0.12077973, CMake 3.22.1 and network access.
 
-## v9.1
+```bash
+python3 scripts/test-integration.py
+bash scripts/build-imzyy.sh all
+```
 
-### Touch boost berfungsi (berlapis, semua nyata)
-Sebelumnya boost mati total bila key sentuhan Samsung tidak ada dan izin adb belum diberikan. Sekarang ada empat lapis, tiap lapis dibaca ulang setelah ditulis dan dilaporkan di panel:
-1. Key "Touch sensitivity" One UI (dicari sendiri; hanya key bernilai 0/1 yang disentuh).
-2. Refresh rate dikunci ke maksimum layar (sampling sentuh Samsung mengikuti laju layar). Cuma butuh "Ubah setelan sistem", jadi ini lapis yang jalan tanpa adb.
-3. Sentuh-tahan dipercepat (izin adb sekali).
-4. Animasi sistem 0.5x (izin adb sekali).
-Semua nilai asli disimpan dan dikembalikan saat dimatikan.
+Output:
 
-### Aksesibilitas "tidak tersedia"
-Itu pembatasan Android 13+ untuk APK instal manual ("setelan terbatas"), bukan kerusakan aplikasi. Layar baru `AccessSetupActivity` menuntun langkahnya (Aksesibilitas, Info Aplikasi > titik tiga > Izinkan setelan terbatas, nyalakan lagi), memantau status langsung dan menutup sendiri begitu Cleaner aktif. Juga dibuka dari ikon pengaturan layanan di halaman Aksesibilitas. Jalur permanen: izin adb `WRITE_SECURE_SETTINGS` sekali.
+```text
+output/IMZYY-XL-Launcher-arm64-debug.apk
+output/BUILD-INFO.txt
+output/IMZYY-XL-Launcher-corresponding-source.tar.gz
+```
 
-### Menu berbaris ala Game Space (gaya One UI)
-- Panel mengambang: menu utama berupa daftar baris (ikon, judul, keterangan, saklar atau panah) dalam grup Boost cepat, Saklar, Performa, Aplikasi, Alat. Ketuk panah di header untuk kembali ke menu. Navigasi 10 tab di bawah dihapus.
-- Aplikasi utama: bagian Game Booster dan Alat juga berupa daftar berbaris.
-- Voice Studio dan Pusat cache sebelumnya tidak terhubung ke menu mana pun; sekarang bisa dibuka dari panel dan aplikasi.
-- Saklar "Layar tetap menyala" di aplikasi utama langsung berlaku di panel yang sedang berjalan.
+The build downloads FlameLauncher-Android, applies the IMZYY identity/UI/performance patch and compiles one ARM64 Android APK. The exact upstream commit is recorded in `BUILD-INFO.txt`. For reproducible releases, pin `IMZYY_ENGINE_REF` to a reviewed commit or tag before publishing.
 
-## Latest update: physical fan telemetry + PM helper
-- Mini fan no longer fabricates RPM. It probes available hardware fan sensor paths and only displays/spins from measured RPM; absent sensor is shown as unavailable.
-- FPS page adds a copy-PM-grant button for applicable runtime permissions (notification and microphone), with notes that it is not universal elevated access.
-- See `BREVENT_PM_GUIDE.md` for limits and instructions.
+## Validation and limitations
 
-## UI refresh (floating panel)
-- Dashboard now has four gaming profiles: Prioritas Ketahanan Battery, Standart, Balanced, and ImzzBoosted.
-- Profile accent colors and fan animation response follow the selected profile; thermal warning colors override profile accents.
-- Main panel quick actions use compact icon tiles and short labels. Cache-cleaning progress is shown inside the floating panel and fades back to SIAP (no Android notification toast).
-- Battery page is simplified to a battery/temperature monitor, four profiles, and core toggles.
+- Offline integration tests validate the patcher, single-app activity presence, branding, UI profiles, typography, icon wiring, ARM64 target and idempotency.
+- The Android APK must still be built by GitHub Actions or on a machine with the Android SDK/NDK/Gradle toolchain. This environment cannot access GitHub or run the Android build, so no fresh APK or physical-device FPS result is claimed here.
+- Install and test on an ARM64 phone after CI passes. Check first launch, Microsoft sign-in, one vanilla instance, one mod-loader instance, renderer switching, touch input and resume after returning from the game.
+
+## Licensing
+
+The selected FlameLauncher source tree declares **AGPL-3.0** for the combined project because it includes GPL/AGPL components. Keep its `LICENSE` and `NOTICE`, publish the corresponding source and modifications when distributing the app, and review all upstream notices. Do not redistribute custom Vulkan drivers unless their separate terms allow it. Minecraft is a Mojang/Microsoft trademark; IMZYY XL is not affiliated with Mojang or Microsoft.
+
+Upstream engine: https://github.com/FlameLaunchers/FlameLauncher-Android
