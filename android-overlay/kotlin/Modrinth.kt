@@ -13,6 +13,7 @@ data class ModFile(
     val sha512: String?,
     val sha1: String?,
     val requiredProjects: List<String>,
+    val size: Long = 0L,
 )
 
 object Modrinth {
@@ -83,6 +84,7 @@ object Modrinth {
             sha512 = hashes?.optString("sha512")?.ifEmpty { null },
             sha1 = hashes?.optString("sha1")?.ifEmpty { null },
             requiredProjects = deps,
+            size = file.optLong("size"),
         )
     }
 }

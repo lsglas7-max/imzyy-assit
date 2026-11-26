@@ -12,6 +12,13 @@ class HttpFailure(val code: Int, url: String) : Exception("HTTP $code untuk $url
 object Net {
     private const val UA = "IMZYY-XL-Launcher/" + ImzyyConfig.VERSION
 
+    fun fmtBytes(b: Long): String = when {
+        b >= 1_073_741_824L -> "%.2f GB".format(b / 1_073_741_824.0)
+        b >= 1_048_576L -> "%.1f MB".format(b / 1_048_576.0)
+        b >= 1024L -> "${b / 1024} KB"
+        else -> "$b B"
+    }
+
     private fun open(url: String): HttpURLConnection {
         require(url.startsWith("https://")) { "Hanya HTTPS yang diizinkan: $url" }
         val c = URL(url).openConnection() as HttpURLConnection

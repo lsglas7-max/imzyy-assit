@@ -84,6 +84,20 @@ jobs:
           path: ${{ steps.loc.outputs.dir }}/output/gradle.log
           if-no-files-found: ignore
 
+      - name: Upload upstream source snippets (for debugging in-game buttons / downloads)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-snippets
+          path: |
+            ${{ steps.loc.outputs.dir }}/.build/FlameLauncher-Android/app/src/main/java/**/KeyboardLayout*.kt
+            ${{ steps.loc.outputs.dir }}/.build/FlameLauncher-Android/app/src/main/java/**/GameControllerView.kt
+            ${{ steps.loc.outputs.dir }}/.build/FlameLauncher-Android/app/src/main/java/**/MinecraftActivity.kt
+            ${{ steps.loc.outputs.dir }}/.build/FlameLauncher-Android/app/src/main/java/**/*Download*.kt
+            ${{ steps.loc.outputs.dir }}/.build/FlameLauncher-Android/app/src/main/java/**/*Install*.kt
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: APK size report
         working-directory: ${{ steps.loc.outputs.dir }}
         run: |

@@ -156,8 +156,9 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "ImzyyRuntimes.installed(context, it)" in preparer and "ImzyyRuntimes.ensure(context, requestedMajor)" in preparer
         assert "import id.imzyy.xl.ImzyyRuntimes" in preparer and preparer.count("ImzyyRuntimes.ensure") == 1
         hub_dir = app / "src/main/java/id/imzyy/xl"
+        assert "setSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt"):
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg

@@ -103,7 +103,7 @@ object Mrpack {
         target.mkdirs()
         val root = target.canonicalFile
         val todo = info.files.filter { !it.clientUnsupported }
-        say("Mengunduh ${todo.size} file (verifikasi hash)…")
+        say("Mengunduh ${todo.size} file, total ${Net.fmtBytes(todo.sumOf { it.size })} (verifikasi hash)…")
 
         val pool = Executors.newFixedThreadPool(4)
         val done = AtomicInteger(0)

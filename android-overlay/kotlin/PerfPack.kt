@@ -19,6 +19,9 @@ object PerfPack {
         PerfMod("voxy", "Voxy (LOD jarak jauh)", "Fabric + Sodium saja. Berat dan butuh OpenGL 4.6: sering tidak jalan di HP, coba satu per satu.", false),
     )
 
+    /** Voxy needs Fabric + Sodium; Mod Menu gives the in-game settings screen. */
+    val VOXY_PRESET = listOf("fabric-api", "sodium", "voxy", "modmenu")
+
     private const val TRACK = ".imzyy-fps-pack.json"
 
     /** Sodium has no Forge/NeoForge build; Embeddium is the equivalent port. */
@@ -30,6 +33,7 @@ object PerfPack {
         val seen = HashSet<String>()
         val installed = ArrayList<String>()
         val queue = ArrayDeque<String>()
+        var totalBytes = 0L
         slugs.forEach { queue.add(slugFor(it, loader)) }
         while (queue.isNotEmpty()) {
             val key = queue.removeFirst()
@@ -41,12 +45,14 @@ object PerfPack {
             if (dest.exists()) {
                 say("= ${f.filename} sudah ada")
             } else {
-                say("↓ ${f.filename}")
+                say("↓ ${f.filename} (${Net.fmtBytes(f.size)})")
                 Net.download(f.url, dest, f.sha512, f.sha1)
+                totalBytes += f.size
                 installed.add(f.filename)
             }
             f.requiredProjects.filter { it !in seen }.forEach { queue.add(it) }
         }
+        if (totalBytes > 0) say("Total unduhan: ${Net.fmtBytes(totalBytes)}")
         remember(modsDir, installed)
         return installed.size
     }

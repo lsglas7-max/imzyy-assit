@@ -34,14 +34,23 @@ object FpsTuner {
         ),
     }
 
-    fun apply(instance: File, profile: Profile): Int {
+    /** Anti FPS-drop / anti-stutter: stable frame cap, no vsync stalls, cheaper chunk updates. */
+    val SMOOTH: List<Pair<String, String>> = listOf(
+        "enableVsync" to "false", "maxFps" to "60", "prioritizeChunkUpdates" to "0",
+        "biomeBlendRadius" to "0", "entityDistanceScaling" to "0.6", "menuBackgroundBlurriness" to "0",
+        "mipmapLevels" to "1", "particles" to "2", "simulationDistance" to "6", "improvedTransparency" to "false",
+    )
+
+    fun apply(instance: File, profile: Profile): Int = applyValues(instance, profile.values)
+
+    fun applyValues(instance: File, values: List<Pair<String, String>>): Int {
         instance.mkdirs()
         val f = File(instance, "options.txt")
         val backup = File(instance, "options.txt.imzyy.bak")
         if (f.exists() && !backup.exists()) f.copyTo(backup)
         val lines = if (f.exists()) f.readLines().toMutableList() else mutableListOf()
         var changed = 0
-        for ((k, v) in profile.values) {
+        for ((k, v) in values) {
             val line = "$k:$v"
             val i = lines.indexOfFirst { it.startsWith("$k:") }
             if (i >= 0) {

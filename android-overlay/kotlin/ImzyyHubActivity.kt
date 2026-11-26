@@ -76,9 +76,10 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
     var progress by mutableStateOf(0f)
     var query by mutableStateOf("")
-    var updateText by mutableStateOf("")
     var mrInfo by mutableStateOf<MrInfo?>(null)
     var mrUri by mutableStateOf<Uri?>(null)
+    var smooth by mutableStateOf(prefs.getBoolean("smooth", false))
+    var texLevel by mutableStateOf(1)
 
     val logs = mutableStateListOf<String>()
     val instances = mutableStateListOf<InstanceMeta>()
@@ -203,7 +204,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     }
 
     fun downloadRuntime(major: Int) = runJob {
-        say("Mengunduh Java $major…")
+        say("Mengunduh Java $major (~${ImzyyRuntimes.sizeMb(major)} MB)…")
         ImzyyRuntimes.ensure(ctx, major) { progress = it }
         rtTick++
         say("✓ Java $major siap")
@@ -230,25 +231,6 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         KeyboardLayoutEditorActivity.start(ctx)
     }
 
-    fun checkUpdate() {
-        if (ImzyyConfig.GITHUB_REPO.isEmpty()) return
-        scope.launch {
-            updateText = "Memeriksa…"
-            updateText = try {
-                withContext(Dispatchers.IO) {
-                    val o = JSONObject(Net.getText("https://api.github.com/repos/${ImzyyConfig.GITHUB_REPO}/releases/latest"))
-                    val tag = o.optString("tag_name")
-                    if (tag.removePrefix("v") == ImzyyConfig.VERSION) "Sudah versi terbaru (${ImzyyConfig.VERSION})" else "Versi baru: $tag"
-                }
-            } catch (e: Exception) {
-                "Belum ada rilis / gagal memeriksa"
-            }
-        }
-    }
-
-    fun openUrl(url: String) {
-        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
 
     /** Lite: first launch of each instance gets the lightweight options.txt profile once
      *  (original is backed up; later changes by the user are never overwritten). */
@@ -266,7 +248,54 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         }
     }
 
+    fun setSmooth(on: Boolean) {
+        smooth = on
+        prefs.edit().putBoolean("smooth", on).apply()
+        if (on) runJob {
+            val n = FpsTuner.applyValues(needTarget(), FpsTuner.SMOOTH)
+            say("✓ Anti drop FPS & stutter aktif ($n opsi). Dipasang ulang otomatis tiap PLAY.")
+        } else say("Anti drop FPS & stutter dimatikan. Pakai KEMBALIKAN OPTIONS ASLI jika mau membatalkan opsi yang sudah ditulis.")
+    }
+
+    fun installVoxy() = runJob {
+        val l = needLoader()
+        if (l != "fabric" && l != "quilt") error("Voxy hanya untuk instance Fabric/Quilt")
+        val mods = File(needTarget(), "mods")
+        say("Memasang preset Voxy (Fabric API, Sodium, Voxy, Mod Menu)…")
+        val n = PerfPack.install(mods, gameVersion, l, PerfPack.VOXY_PRESET, this::say)
+        say("✓ $n file dipasang. Buka Mod Menu di dalam game untuk mengatur Voxy. Voxy butuh renderer OpenGL 4.x (MobileGlues/Zink), tidak jalan di GL4ES.")
+    }
+
+    fun compressTextures() = runJob {
+        val dir = needTarget()
+        val minSide = TextureCompress.MIN_SIDE[texLevel]
+        val packs = File(dir, "resourcepacks")
+        packs.mkdirs()
+        val srcs = packs.listFiles(java.io.FileFilter { it.isFile && it.name.endsWith(".zip") && !it.name.endsWith(TextureCompress.SUFFIX) })?.toList().orEmpty()
+        if (srcs.isNotEmpty()) {
+            for (src in srcs) {
+                say("Mengompres ${src.name}…")
+                val dest = File(packs, src.name.removeSuffix(".zip") + TextureCompress.SUFFIX)
+                val r = TextureCompress.compressPack(src, dest, minSide) { progress = it }
+                say("✓ ${dest.name}: ${Net.fmtBytes(r.before)} → ${Net.fmtBytes(r.after)} (${r.changed} tekstur)")
+            }
+            say("Aktifkan versi -imzyy-lite di Options > Resource Packs.")
+        } else {
+            val jar = TextureCompress.findClientJar(ctx, dir, gameVersion) ?: error("Jar Minecraft $gameVersion tidak ditemukan; jalankan game sekali dulu atau taruh resource pack di folder resourcepacks")
+            say("Membuat pack tekstur ringan dari ${jar.name}…")
+            val dest = File(packs, TextureCompress.VANILLA_PACK)
+            val r = TextureCompress.buildVanillaPack(jar, dest, minSide) { progress = it }
+            TextureCompress.enablePack(dir, dest.name)
+            say("✓ ${r.changed} tekstur diperkecil, pack ${Net.fmtBytes(r.after)} diaktifkan otomatis")
+        }
+    }
+
+    fun cleanTextures() = runJob {
+        say("✓ ${TextureCompress.clean(File(needTarget(), "resourcepacks"))} file hasil kompres dihapus")
+    }
+
     fun play() {
+        if (smooth) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.SMOOTH) } }
         liteAutoTune()
         ctx.startActivity(Intent().setClassName(ctx.packageName, ImzyyConfig.MAIN_ACTIVITY))
     }
@@ -320,7 +349,6 @@ private fun Title(text: String, sub: String) {
 
 @Composable
 private fun HomeTab(s: HubState) {
-    LaunchedEffect(Unit) { s.checkUpdate() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Reveal(0) { Spacer(Modifier.height(24.dp)) } }
         item {
@@ -358,21 +386,6 @@ private fun HomeTab(s: HubState) {
         }
         item { Reveal(4) { RuntimeCard(s) } }
         item { LogCard(s) }
-        if (ImzyyConfig.GITHUB_REPO.isNotEmpty()) {
-            item {
-                Reveal(5) {
-                    Panel {
-                        Text("GitHub", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(ImzyyConfig.GITHUB_REPO + "  •  v" + ImzyyConfig.VERSION, color = Ink.Sub, fontSize = 13.sp)
-                        if (s.updateText.isNotEmpty()) Text(s.updateText, color = Ink.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            InkButton("REPO", { s.openUrl("https://github.com/" + ImzyyConfig.GITHUB_REPO) }, Modifier.weight(1f), filled = false)
-                            InkButton("RILIS", { s.openUrl("https://github.com/" + ImzyyConfig.GITHUB_REPO + "/releases") }, Modifier.weight(1f), filled = false)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -470,6 +483,40 @@ private fun BoostTab(s: HubState) {
                 }
             }
         }
+        item {
+            Reveal(4) {
+                Panel {
+                    Text("Anti drop FPS & stutter", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Kunci FPS stabil, matikan vsync, ringankan update chunk & biome blend. Dipasang ulang otomatis setiap kamu tekan PLAY.", color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("AKTIF", s.smooth) { s.setSmooth(true) }
+                        Chip("MATI", !s.smooth) { s.setSmooth(false) }
+                    }
+                }
+            }
+        }
+        item {
+            Reveal(5) {
+                Panel {
+                    Text("Voxy (LOD jarak jauh)", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Pasang Fabric API + Sodium + Voxy + Mod Menu sekali tekan. Atur Voxy langsung di dalam game lewat Mod Menu. Voxy butuh renderer OpenGL 4.x (MobileGlues/Zink); di OpenGL ES murni atau GL4ES tidak bisa jalan.", color = Ink.Sub, fontSize = 12.sp)
+                    InkButton("PASANG PRESET VOXY", { s.installVoxy() }, enabled = !s.busy)
+                }
+            }
+        }
+        item {
+            Reveal(6) {
+                Panel {
+                    Text("Kompres tekstur", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Memperkecil PNG jadi setengah sisi (memori tekstur sekitar 4x lebih kecil). Pack di folder resourcepacks dikompres; kalau kosong dibuat pack ringan dari Minecraft vanilla. Animasi tidak disentuh.", color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextureCompress.LEVEL_NAMES.forEachIndexed { i, n -> Chip(n, s.texLevel == i) { s.texLevel = i } }
+                    }
+                    InkButton("KOMPRES TEKSTUR", { s.compressTextures() }, enabled = !s.busy)
+                    InkButton("HAPUS HASIL KOMPRES", { s.cleanTextures() }, filled = false, enabled = !s.busy)
+                }
+            }
+        }
         item { LogCard(s) }
     }
 }
@@ -518,7 +565,7 @@ private fun ImportTab(s: HubState) {
                         Text(info.name + "  " + info.version, color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         if (info.summary.isNotEmpty()) Text(info.summary, color = Ink.Sub, fontSize = 12.sp, maxLines = 3)
                         Text(info.deps.entries.joinToString("  •  ") { it.key + " " + it.value }, color = Ink.Text, fontSize = 12.sp)
-                        Text("${info.files.size} file akan diunduh dan diverifikasi hash-nya.", color = Ink.Sub, fontSize = 12.sp)
+                        Text("${info.files.size} file (${Net.fmtBytes(info.files.sumOf { it.size })}) akan diunduh dan diverifikasi hash-nya.", color = Ink.Sub, fontSize = 12.sp)
                         Text("Buat dulu instance dengan versi & loader di atas lewat launcher, lalu pilih foldernya sebagai target.", color = Ink.Sub, fontSize = 12.sp)
                         InkButton("IMPORT KE FOLDER INSTANCE", { s.importMrpack() }, enabled = !s.busy)
                     }
