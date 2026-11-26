@@ -163,7 +163,7 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         assert "ImzyyPad.attach(a)" in (hub_dir / "ImzyyWindow.kt").read_text()
         assert "switchSmooth" in (hub_dir / "ImzyyHubActivity.kt").read_text() and "SMOOTH" in (hub_dir / "FpsTuner.kt").read_text()
         assert "liteAutoTune()" in (hub_dir / "ImzyyHubActivity.kt").read_text()
-        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt"):
+        for name in ("ImzyyHubActivity.kt", "Ui.kt", "Modrinth.kt", "PerfPack.kt", "Mrpack.kt", "FpsTuner.kt", "Net.kt", "ImzyyConfig.kt", "ImzyyControls.kt", "ImzyyRuntimes.kt", "ModImport.kt", "TextureCompress.kt", "ImzyyWindow.kt", "ImzyyFonts.kt", "ImzyyPad.kt", "ImzyyInput.kt", "ImzyyInitProvider.kt"):
             assert (hub_dir / name).is_file(), name
         cfg = (hub_dir / "ImzyyConfig.kt").read_text()
         assert 'GITHUB_REPO = "owner/imzyy"' in cfg and "@" not in cfg, cfg
@@ -172,6 +172,8 @@ Button(colors = ButtonDefaults.buttonColors(containerColor = BgBorder)) { Text("
         acts = man.find("application").findall("activity")
         launchers = [a.get(ANDROID + "name") for a in acts for f in a.findall("intent-filter")
                      for c in f.findall("category") if c.get(ANDROID + "name") == "android.intent.category.LAUNCHER"]
+        provs = [(p.get("{http://schemas.android.com/apk/res/android}name"), p.get("{http://schemas.android.com/apk/res/android}process")) for p in man.find("application").findall("provider")]
+        assert provs == [("id.imzyy.xl.ImzyyInitProvider", ":minecraft")], provs
         assert launchers == ["id.imzyy.xl.ImzyyHubActivity"], launchers
         assert sum(1 for a in acts if a.get(ANDROID + "name") == ".presentation.MinecraftActivity") == 1
         assert sum(1 for a in acts if a.get(ANDROID + "name") == ".presentation.MainActivity") == 1

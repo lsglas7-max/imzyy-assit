@@ -72,6 +72,7 @@ object ImzyyPad {
         b("W", "PRESS", 0.13f, 0.56f), b("A", "PRESS", 0.07f, 0.74f), b("S", "PRESS", 0.13f, 0.92f), b("D", "PRESS", 0.19f, 0.74f),
         b("LMB", "AUTO", 0.88f, 0.74f), b("RMB", "AUTO", 0.78f, 0.88f),
         b("SPACE", "PRESS", 0.92f, 0.52f), b("SHIFT", "TOGGLE", 0.78f, 0.60f), b("E", "PRESS", 0.62f, 0.90f),
+        b("Q", "PRESS", 0.52f, 0.90f), b("F3", "TOGGLE", 0.30f, 0.12f), b("F5", "PRESS", 0.38f, 0.12f),
     )
 
     private fun file(ctx: Context) = File(ctx.filesDir, FILE)
@@ -81,6 +82,7 @@ object ImzyyPad {
             val f = file(ctx)
             if (!f.exists()) { resetList(); return }
             val o = JSONObject(f.readText())
+            if (o.optInt("ver", 1) < 2) { resetList(); return }
             enabled = o.optBoolean("enabled", true)
             alwaysShow = o.optBoolean("alwaysShow", true)
             size = o.optDouble("size", 1.0).toFloat()
@@ -103,7 +105,7 @@ object ImzyyPad {
             val arr = JSONArray()
             for (b in buttons) arr.put(JSONObject().put("id", b.id).put("label", b.label).put("key", b.key)
                 .put("mode", b.mode).put("x", b.x.toDouble()).put("y", b.y.toDouble()))
-            file(ctx).writeText(JSONObject().put("enabled", enabled).put("alwaysShow", alwaysShow)
+            file(ctx).writeText(JSONObject().put("ver", 2).put("enabled", enabled).put("alwaysShow", alwaysShow)
                 .put("size", size.toDouble()).put("opacity", opacity.toDouble()).put("buttons", arr).toString())
         } catch (_: Exception) {
         }

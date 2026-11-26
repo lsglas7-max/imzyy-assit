@@ -56,7 +56,7 @@ object ImzyyWindow {
             WindowCompat.setDecorFitsSystemWindows(w, false)
             val c = WindowInsetsControllerCompat(w, w.decorView)
             c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            c.hide(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            c.hide(WindowInsetsCompat.Type.systemBars())
         } catch (_: Throwable) {
         }
     }

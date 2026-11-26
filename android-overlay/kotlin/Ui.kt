@@ -2,6 +2,7 @@ package id.imzyy.xl
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -50,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -107,11 +110,9 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
             .fillMaxWidth()
             .clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0x2EFFFFFF), Color(0x0DFFFFFF))))
-            .drawBehind {
-                drawRect(
-                    Brush.verticalGradient(listOf(Color(0x24FFFFFF), Color(0x00FFFFFF)), startY = 0f, endY = size.height * 0.42f),
-                    size = Size(size.width, size.height * 0.42f),
-                )
+            .drawWithCache {
+                val gloss = Brush.verticalGradient(listOf(Color(0x24FFFFFF), Color(0x00FFFFFF)), startY = 0f, endY = size.height * 0.42f)
+                onDrawBehind { drawRect(gloss, size = Size(size.width, size.height * 0.42f)) }
             }
             .border(1.dp, Brush.linearGradient(listOf(Color(0x80FFFFFF), Color(0x14FFFFFF), Color(0x40FFFFFF))), shape)
             .padding(16.dp),
@@ -179,14 +180,16 @@ fun Chip(text: String, selected: Boolean, compact: Boolean = false, onClick: () 
 
 @Composable
 fun Reveal(index: Int, content: @Composable () -> Unit) {
-    var shown by remember { mutableStateOf(false) }
+    val a = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(index * 60L)
-        shown = true
+        delay(minOf(index, 4) * 40L)
+        a.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
     }
-    AnimatedVisibility(
-        visible = shown,
-        enter = fadeIn(tween(380, easing = FastOutSlowInEasing)) + slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 10 },
+    Box(
+        Modifier.graphicsLayer {
+            alpha = a.value
+            translationY = (1f - a.value) * 22.dp.toPx()
+        },
     ) { content() }
 }
 
@@ -230,50 +233,32 @@ fun InkField(value: String, onChange: (String) -> Unit, hint: String, modifier: 
 /** Slow drifting grid + a soft scan band. Pure Canvas, no bitmaps, very cheap. */
 @Composable
 fun AnimatedBackdrop(modifier: Modifier = Modifier) {
-    val t = rememberInfiniteTransition(label = "backdrop")
-    val p by t.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing)),
-        label = "backdropP",
+    // Static, cached backdrop: drawn once per size instead of every frame (keeps the hub smooth on mid-range phones).
+    Box(
+        modifier
+            .fillMaxSize()
+            .drawWithCache {
+                val step = 56.dp.toPx()
+                val glow = Brush.radialGradient(
+                    colors = listOf(Color(0x1FFFFFFF), Color.Transparent),
+                    center = Offset(size.width * 0.25f, size.height * 0.12f),
+                    radius = size.width * 0.9f,
+                )
+                onDrawBehind {
+                    var x = -step
+                    while (x < size.width + step) {
+                        drawLine(Color(0x10FFFFFF), Offset(x, 0f), Offset(x - size.height * 0.25f, size.height), 1f)
+                        x += step
+                    }
+                    drawRect(glow)
+                    for (i in 0 until 12) {
+                        val px = ((i * 9301f + 49297f) % 233280f) / 233280f
+                        val py = ((i * 4973f + 1217f) % 233280f) / 233280f
+                        drawCircle(Color(0x2EFFFFFF), (1f + (i % 3)) * density, Offset(px * size.width, py * size.height))
+                    }
+                }
+            },
     )
-    Canvas(modifier.fillMaxSize()) {
-        val step = 56.dp.toPx()
-        val shift = p * step
-        var x = -step + shift
-        while (x < size.width + step) {
-            drawLine(Color(0x12FFFFFF), Offset(x, 0f), Offset(x - size.height * 0.25f, size.height), 1f)
-            x += step
-        }
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0x16FFFFFF), Color.Transparent),
-                center = Offset(size.width * (0.2f + 0.6f * p), size.height * 0.18f),
-                radius = size.width * 0.85f,
-            ),
-        )
-        for (i in 0 until 26) {
-            val px = ((i * 9301f + 49297f) % 233280f) / 233280f
-            val speed = 0.4f + (i % 5) * 0.15f
-            val py = 1f - ((p * speed + i * 0.037f) % 1f)
-            drawCircle(
-                color = Color(0x33FFFFFF),
-                radius = (1f + (i % 3)) * density,
-                center = Offset(px * size.width, py * size.height),
-            )
-        }
-        val band = 160.dp.toPx()
-        val cy = (p * (size.height + band * 2)) - band
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(Color.Transparent, Color(0x0FFFFFFF), Color.Transparent),
-                startY = cy - band,
-                endY = cy + band,
-            ),
-            topLeft = Offset(0f, cy - band),
-            size = Size(size.width, band * 2),
-        )
-    }
 }
 
 @Composable
@@ -309,51 +294,47 @@ fun InkSlider(value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
 
 @Composable
 fun ShimmerTitle(text: String, sizeSp: Int = 36) {
-    val t = rememberInfiniteTransition(label = "shimmer")
-    val x by t.animateFloat(
-        initialValue = -400f,
-        targetValue = 1100f,
-        animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing)),
-        label = "shimmerX",
-    )
-    val brush = Brush.linearGradient(
-        colors = listOf(Color(0xFF5E5E5E), Color(0xFFFFFFFF), Color(0xFF5E5E5E)),
-        start = Offset(x, 0f),
-        end = Offset(x + 360f, 0f),
-    )
-    Text(
-        text,
-        style = TextStyle(brush = brush, fontSize = sizeSp.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp),
-    )
+    // One crisp sweep on entry, then a solid white title (no endless animation).
+    var done by remember { mutableStateOf(false) }
+    val x = remember { Animatable(-300f) }
+    LaunchedEffect(Unit) {
+        delay(200)
+        x.animateTo(1000f, tween(1000, easing = FastOutSlowInEasing))
+        done = true
+    }
+    val base = TextStyle(fontSize = sizeSp.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+    if (done) {
+        Text(text, style = base.copy(color = Ink.White))
+    } else {
+        val brush = Brush.linearGradient(
+            colors = listOf(Color(0xFFBDBDBD), Color(0xFFFFFFFF), Color(0xFFBDBDBD)),
+            start = Offset(x.value, 0f),
+            end = Offset(x.value + 360f, 0f),
+        )
+        Text(text, style = base.copy(brush = brush))
+    }
 }
 
 @Composable
 fun GlowButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val t = rememberInfiniteTransition(label = "glow")
-    val a by t.animateFloat(
-        initialValue = 0.08f,
-        targetValue = 0.42f,
-        animationSpec = infiniteRepeatable(animation = tween(1800, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
-        label = "glowA",
-    )
     Pressable(onClick = onClick, modifier = modifier) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .drawBehind {
                     drawRoundRect(
-                        color = Color.White.copy(alpha = a),
-                        topLeft = Offset(-6f, -6f),
-                        size = Size(size.width + 12f, size.height + 12f),
-                        cornerRadius = CornerRadius(22.dp.toPx(), 22.dp.toPx()),
+                        color = Color.White.copy(alpha = 0.16f),
+                        topLeft = Offset(-5f, -5f),
+                        size = Size(size.width + 10f, size.height + 10f),
+                        cornerRadius = CornerRadius(21.dp.toPx(), 21.dp.toPx()),
                     )
                 }
                 .clip(RoundedCornerShape(16.dp))
-                .background(Ink.White)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD9D9D9))))
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text, color = Ink.Black, fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 3.sp)
+            Text(text, color = Ink.Black, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, letterSpacing = 3.sp)
         }
     }
 }

@@ -149,6 +149,8 @@ def patch_in_app_branding(app: Path) -> None:
 INTER_URL = "https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip"
 INTER_FILES = {"Inter-Regular.ttf": "inter_regular.ttf", "Inter-Medium.ttf": "inter_medium.ttf",
                "Inter-SemiBold.ttf": "inter_semibold.ttf", "Inter-Bold.ttf": "inter_bold.ttf"}
+# Optional tighter display cut for Bold/ExtraBold headings (more character than plain Inter Bold).
+INTER_DISPLAY = {"InterDisplay-Bold.ttf": "inter_display_bold.ttf", "InterDisplay-ExtraBold.ttf": "inter_display_xbold.ttf"}
 
 
 def _app_namespace(app: Path) -> str | None:
@@ -182,22 +184,25 @@ def patch_fonts(app: Path) -> str:
                 found = {}
                 for n in z.namelist():
                     base = n.rsplit("/", 1)[-1]
-                    if base in INTER_FILES and "ttf" in n.lower() and "variable" not in n.lower():
+                    if (base in INTER_FILES or base in INTER_DISPLAY) and "ttf" in n.lower() and "variable" not in n.lower():
                         found.setdefault(base, n)
-                if len(found) == len(INTER_FILES):
+                if all(k in found for k in INTER_FILES):
                     font_dir.mkdir(parents=True, exist_ok=True)
-                    for base, target in INTER_FILES.items():
-                        (font_dir / target).write_bytes(z.read(found[base]))
+                    for base, target in {**INTER_FILES, **INTER_DISPLAY}.items():
+                        if base in found:
+                            (font_dir / target).write_bytes(z.read(found[base]))
                     ready = True
         except Exception as exc:  # network optional
             print(f"fonts: Inter tidak diunduh ({exc}); pakai font sistem")
+    display = all((font_dir / v).exists() for v in INTER_DISPLAY.values())
+    bold_file, xbold_file = ("inter_display_bold", "inter_display_xbold") if display else ("inter_bold", "inter_bold")
     if ready and ns:
         (hub / "ImzyyFonts.kt").write_text(
             "package id.imzyy.xl\n\nimport androidx.compose.ui.text.font.Font\nimport androidx.compose.ui.text.font.FontFamily\n"
             "import androidx.compose.ui.text.font.FontWeight\nimport " + ns + ".R\n\nobject ImzyyFonts {\n    val family: FontFamily = FontFamily(\n"
             "        Font(R.font.inter_regular, FontWeight.Normal),\n        Font(R.font.inter_medium, FontWeight.Medium),\n"
-            "        Font(R.font.inter_semibold, FontWeight.SemiBold),\n        Font(R.font.inter_bold, FontWeight.Bold),\n"
-            "        Font(R.font.inter_bold, FontWeight.ExtraBold),\n    )\n}\n", encoding="utf-8")
+            "        Font(R.font.inter_semibold, FontWeight.SemiBold),\n        Font(R.font." + bold_file + ", FontWeight.Bold),\n"
+            "        Font(R.font." + xbold_file + ", FontWeight.ExtraBold),\n    )\n}\n", encoding="utf-8")
         print("fonts: Inter dipasang")
     else:
         (hub / "ImzyyFonts.kt").write_text(fallback, encoding="utf-8")
@@ -658,6 +663,19 @@ def install_hub(app: Path, repo: str, version: str, variant: str = "full", runti
         flt = ET.SubElement(hub, "intent-filter")
         ET.SubElement(flt, "action").set(name_attr, "android.intent.action.MAIN")
         ET.SubElement(flt, "category").set(name_attr, "android.intent.category.LAUNCHER")
+    prov_name = "id.imzyy.xl.ImzyyInitProvider"
+    if not any(p.get(name_attr) == prov_name for p in application.findall("provider")):
+        game_process = None
+        for node in application.findall("activity"):
+            if str(node.get(name_attr, "")).endswith("MinecraftActivity"):
+                game_process = node.get(f"{{{ANDROID}}}process")
+        prov = ET.SubElement(application, "provider")
+        prov.set(name_attr, prov_name)
+        prov.set(f"{{{ANDROID}}}authorities", "${applicationId}.imzyyinit")
+        prov.set(f"{{{ANDROID}}}exported", "false")
+        prov.set(f"{{{ANDROID}}}initOrder", "100")
+        if game_process:
+            prov.set(f"{{{ANDROID}}}process", game_process)
     perms = [p.get(name_attr) for p in root.findall("uses-permission")]
     if "android.permission.INTERNET" not in perms:
         perm = ET.Element("uses-permission")

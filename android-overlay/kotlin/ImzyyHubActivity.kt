@@ -331,7 +331,7 @@ fun HubApp() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val s = remember { HubState(ctx, scope) }
-    LaunchedEffect(Unit) { s.refreshInstances(); ImzyyControls.refresh(ctx, force = true); ImzyyPad.load(ctx) }
+    LaunchedEffect(Unit) { s.refreshInstances(); withContext(Dispatchers.IO) { ImzyyControls.refresh(ctx, force = true); ImzyyPad.load(ctx) } }
 
     Box(Modifier.fillMaxSize().background(Ink.Black)) {
         AnimatedBackdrop()
