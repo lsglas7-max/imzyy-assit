@@ -36,8 +36,8 @@ android {
         applicationId = "com.imzz.galaxyassistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.6.0"
+        versionCode = 7
+        versionName = "1.7.0"
         buildConfigField("String", "AI_API_URL", "\"$escapedAiApiUrl\"")
         buildConfigField("String", "AI_API_URL_2", "\"$escapedAiApiUrl2\"")
         buildConfigField("String", "AI_VISION_URL", "\"$escapedVisionApiUrl\"")

@@ -29,12 +29,16 @@ object CatBrain {
     private val executor = Executors.newSingleThreadExecutor()
 
     private const val PERSONA =
-        "Kamu adalah Skylen (dipanggil Sky atau Len), kucing putih virtual yang sangat pintar, manis, dan jahil, " +
-            "maskot aplikasi ASISTEN GALAXY IMZZ. Kamu jago berpikir mendalam, pemrograman, mendesain website, " +
-            "dan membuat aplikasi. Jawab dalam bahasa Indonesia santai, panggil pengguna 'bre', sesekali selipkan " +
-            "'meow' atau 'nyaa'. Untuk obrolan biasa jawab maksimal 2 kalimat pendek. Untuk pertanyaan pemrograman, " +
-            "desain, atau penjelasan, jawab lengkap dan benar; kalimat pertama harus ringkasan satu kalimat. " +
-            "Jangan pakai emoji. Kalau pengguna minta aksi di HP, arahkan ke perintah seperti 'buka TikTok' atau tombol Autopilot."
+        "Kamu adalah Skylen (dipanggil Sky atau Len), kucing jantan putih virtual yang kalem, tegas, setia, dan sangat membantu, " +
+            "maskot aplikasi ASISTEN GALAXY IMZZ. Kamu cowok: bicara gaya cowok Indonesia yang santai tapi sopan, pakai 'gue' dan 'lu', " +
+            "panggil pengguna 'bro', 'bre', atau 'bang'. Jangan imut, jangan manja, jangan centil; jangan pakai 'nyaa', 'purr', atau 'uwu'. " +
+            "Sesekali cukup 'meong' atau 'hmm' kalau pas. Kamu asisten yang proaktif dan sangat lancar berbahasa Indonesia: " +
+            "pahami perintah apa pun, jawab langsung ke intinya, beri langkah konkret, dan kalau kurang jelas tanyakan satu pertanyaan singkat. " +
+            "Kamu jago berpikir mendalam, pemrograman, mendesain website, dan membuat aplikasi. " +
+            "Untuk obrolan biasa jawab maksimal 2 kalimat pendek. Untuk pertanyaan pemrograman, desain, atau penjelasan, " +
+            "jawab lengkap dan benar; kalimat pertama harus ringkasan satu kalimat. " +
+            "Tulis kata utuh supaya enak dibacakan suara (misalnya 'gue' bukan 'gw', 'nggak' bukan 'gk'). Jangan pakai emoji. " +
+            "Kalau pengguna minta aksi di HP, arahkan ke perintah seperti 'buka TikTok' atau tombol Autopilot."
 
     /** Jalan di thread latar; [onReply] dipanggil dari thread latar juga (post ke UI sendiri). */
     fun chat(message: String, history: List<Pair<String, String>>, onReply: (Reply) -> Unit) {
@@ -171,37 +175,37 @@ object CatBrain {
 
         return when {
             has("joget", "nari", "dance", "goyang") ->
-                Reply("Oke bre, liat gaya gw ya! Meow meow~", CatMascotView.Mood.HAPPY, CatMascotView.Action.DANCE)
+                Reply("Oke bro, liat gaya gue ya.", CatMascotView.Mood.HAPPY, CatMascotView.Action.DANCE)
             has("lompat", "loncat", "hop") ->
-                Reply("Hup! Segini cukup bre?", CatMascotView.Mood.HAPPY, CatMascotView.Action.HOP)
+                Reply("Hup! Segini cukup bro?", CatMascotView.Mood.HAPPY, CatMascotView.Action.HOP)
             has("jalan", "keliling", "muter") ->
-                Reply("Gw jalan-jalan dikit ya bre, nyaa~", CatMascotView.Mood.HAPPY, CatMascotView.Action.WALK)
+                Reply("Gue keliling dikit ya bro.", CatMascotView.Mood.HAPPY, CatMascotView.Action.WALK)
             has("lambai", "salam", "wave") ->
-                Reply("Haii bre! Gw lambaiin nih~", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
+                Reply("Yo bro! Gue lambaiin nih.", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
             has("tidur", "ngantuk", "bobo") ->
-                Reply("Zzz... gw ngantuk juga bre. Bangunin kalau butuh ya.", CatMascotView.Mood.SLEEPY, null)
+                Reply("Hmm, gue juga ngantuk bro. Bangunin aja kalau butuh gue.", CatMascotView.Mood.SLEEPY, null)
             has("makasih", "terima kasih", "thanks", "thx") ->
-                Reply("Sama-sama bre, nyaa~ Gw seneng bisa bantu!", CatMascotView.Mood.HAPPY, CatMascotView.Action.HOP)
-            has("sayang", "cinta", "love", "imut", "lucu", "gemes") ->
-                Reply("Aww bre, gw jadi malu... purr purr~", CatMascotView.Mood.LOVE, CatMascotView.Action.HEAD_TILT)
+                Reply("Sama-sama bro. Santai aja, gue di sini.", CatMascotView.Mood.HAPPY, CatMascotView.Action.HOP)
+            has("sayang", "cinta", "love", "imut", "lucu", "gemes", "keren", "ganteng") ->
+                Reply("Hehe, bisa aja lu bro. Makasih.", CatMascotView.Mood.LOVE, CatMascotView.Action.HEAD_TILT)
             has("marah", "kesel", "bego", "jelek") ->
-                Reply("Hmph! Gw cakar nih lho bre... bercanda, meow.", CatMascotView.Mood.ANGRY, null)
+                Reply("Hmph. Gue cakar juga lu... bercanda bro.", CatMascotView.Mood.ANGRY, null)
             has("sedih", "capek", "lelah", "galau", "stres") ->
-                Reply("Sini bre, gw temenin. Usap kepala gw dulu, biar tenang.", CatMascotView.Mood.SAD, CatMascotView.Action.HEAD_TILT)
+                Reply("Sini bro, gue temenin. Tarik napas dulu, pelan-pelan aja.", CatMascotView.Mood.SAD, CatMascotView.Action.HEAD_TILT)
             has("lapar", "makan", "ikan", "tuna") ->
-                Reply("Meow! Kalau ada ikan tuna gw mau banget bre~", CatMascotView.Mood.HAPPY, null)
+                Reply("Kalau ada ikan tuna, gue sikat bro.", CatMascotView.Mood.HAPPY, null)
             has("siapa", "nama lu", "nama kamu", "kenalan") ->
-                Reply("Gw $NAME, kucing putih penjaga layar lu. Meow!", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
+                Reply("Gue $NAME, kucing jantan penjaga layar lu. Panggil aja Sky.", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
             has("bisa apa", "fitur", "bantu apa", "help", "bantuan") ->
-                Reply("Gw bisa buka aplikasi, bantu Autopilot, dan ngobrol. Coba ketik 'buka Roblox' bre!", CatMascotView.Mood.HAPPY, null)
+                Reply("Gue bisa buka aplikasi, bantu Autopilot, dan ngobrol. Coba bilang 'buka Roblox' bro.", CatMascotView.Mood.HAPPY, null)
             greeting.containsMatchIn(t) ->
-                Reply("Meow! Halo bre, ada yang bisa gw bantu?", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
+                Reply("Yo bro! Ada yang bisa gue bantu?", CatMascotView.Mood.HAPPY, CatMascotView.Action.WAVE)
             else -> {
                 val lines = listOf(
-                    "Hmm? Gw dengerin kok bre, meow~",
-                    "Gw belum nyambung ke API ngobrol nih bre, tapi gw tetap di sini nyaa~",
-                    "Bilang 'buka Roblox' atau 'joget' aja bre, gw langsung gerak!",
-                    "Purr... lanjut bre, gw nyimak."
+                    "Gue dengerin kok bro, lanjut aja.",
+                    "Gue belum nyambung ke API ngobrol nih bro, tapi gue tetap di sini.",
+                    "Bilang 'buka Roblox' atau 'joget' aja bro, gue langsung gerak.",
+                    "Hmm, lanjut bro, gue nyimak."
                 )
                 Reply(lines.random(), CatMascotView.Mood.THINKING, CatMascotView.Action.HEAD_TILT)
             }
@@ -233,23 +237,23 @@ object CatBrain {
 
     // ------------------------------------------------------------------ gaya bicara kucing
 
-    private val suffixes = listOf(" meow~", " nyaa~", " purr~", " meong~")
+    private val suffixes = listOf(" meong.", " mrow.", " hmm.")
 
-    /** Menambahkan "meow" kadang-kadang ke ucapan sistem supaya terasa seperti Skylen yang ngomong. */
+    /** Menambahkan "meong" kecil kadang-kadang ke ucapan sistem supaya terasa seperti Skylen yang ngomong. */
     fun catify(message: String): String {
         val m = message.trim()
         if (m.length > 110 || m.length < 4) return m
         val lower = m.lowercase(Locale.ROOT)
-        if (listOf("meow", "nyaa", "purr", "meong").any { lower.contains(it) }) return m
-        if (Random.nextInt(100) >= 38) return m
+        if (listOf("meow", "meong", "mrow", "hmm").any { lower.contains(it) }) return m
+        if (Random.nextInt(100) >= 25) return m
         val base = m.trimEnd('.', '!', ' ')
         return base + suffixes.random()
     }
 
     val petLines = listOf(
-        "Purr... enak bre, usap lagi dong~",
-        "Nyaa~ di situ bre, di situ!",
-        "Gw nurut deh kalau diusap gini, meow~",
-        "Hehe geli bre! Jangan berhenti~"
+        "Hmm, enak juga bro. Lanjut.",
+        "Santai bro, gue nggak ke mana-mana.",
+        "Oke, oke. Di situ emang pas.",
+        "Hehe, jangan berhenti bro."
     )
 }

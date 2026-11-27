@@ -43,7 +43,7 @@ class CatMascotView @JvmOverloads constructor(
 
     enum class Outfit(val label: String) {
         NONE("Polos"),
-        BOW("Pita"),
+        BOW("Dasi Kupu-kupu"),
         WIZARD("Topi Penyihir"),
         GLASSES("Kacamata Cyber"),
         HEADPHONES("Headphone"),
@@ -589,20 +589,25 @@ class CatMascotView @JvmOverloads constructor(
         drawEar(c, true)
         drawEar(c, false)
 
+        // pipi tebal khas kucing jantan (digambar di belakang kepala)
+        rect.set(42f, 98f, 70f, 128f); c.drawOval(rect, fur); c.drawOval(rect, line)
+        rect.set(130f, 98f, 158f, 128f); c.drawOval(rect, fur); c.drawOval(rect, line)
+
         // kepala
         rect.set(50f, 48f, 150f, 136f)
         c.drawOval(rect, fur)
         c.drawOval(rect, line)
 
-        // pipi merona
-        val blush = when (mood) {
-            Mood.LOVE -> 170
-            Mood.HAPPY -> 140
-            Mood.SAD, Mood.ANGRY -> 40
-            else -> 90
+        // pipi: tidak merona pink, hanya sedikit hangat saat LOVE
+        if (mood == Mood.LOVE) {
+            rect.set(55f, 104.5f, 73f, 115.5f); c.drawOval(rect, fillColor(Color.argb(90, 255, 160, 150)))
+            rect.set(127f, 104.5f, 145f, 115.5f); c.drawOval(rect, fillColor(Color.argb(90, 255, 160, 150)))
         }
-        rect.set(55f, 104.5f, 73f, 115.5f); c.drawOval(rect, fillColor(Color.argb(blush, 255, 143, 176)))
-        rect.set(127f, 104.5f, 145f, 115.5f); c.drawOval(rect, fillColor(Color.argb(blush, 255, 143, 176)))
+
+        // bekas luka kecil di pipi kiri (tomcat sejati)
+        c.drawLine(58f, 100f, 70f, 117f, strokeColor(Color.argb(200, 190, 105, 105), 2.2f))
+        c.drawLine(60f, 106f, 67f, 103f, strokeColor(Color.argb(200, 190, 105, 105), 1.6f))
+        c.drawLine(63f, 111f, 70f, 108f, strokeColor(Color.argb(200, 190, 105, 105), 1.6f))
 
         drawEyes(c, mood, t)
         drawNoseAndMouth(c, mood, t)
@@ -770,14 +775,14 @@ class CatMascotView @JvmOverloads constructor(
             Outfit.NONE, Outfit.SCARF -> Unit
 
             Outfit.BOW -> {
-                val pink = Color.rgb(255, 111, 163)
-                val edge = Color.rgb(214, 70, 120)
+                val pink = Color.rgb(38, 64, 130)
+                val edge = Color.rgb(18, 32, 78)
                 path.reset()
                 path.moveTo(100f, 136f); path.lineTo(76f, 124f); path.lineTo(76f, 148f); path.close()
                 path.moveTo(100f, 136f); path.lineTo(124f, 124f); path.lineTo(124f, 148f); path.close()
                 c.drawPath(path, fillColor(pink))
                 c.drawPath(path, strokeColor(edge, 2f))
-                c.drawCircle(100f, 136f, 6f, fillColor(Color.rgb(255, 140, 185)))
+                c.drawCircle(100f, 136f, 6f, fillColor(Color.rgb(70, 102, 190)))
                 c.drawCircle(100f, 136f, 6f, strokeColor(edge, 2f))
             }
 

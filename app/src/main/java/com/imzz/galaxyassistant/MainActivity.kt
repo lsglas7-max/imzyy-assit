@@ -47,6 +47,7 @@ import com.imzz.galaxyassistant.screen.ScreenCaptureService
 import com.imzz.galaxyassistant.storage.ControlProfile
 import com.imzz.galaxyassistant.storage.GameMemory
 import com.imzz.galaxyassistant.voice.VoiceFeedback
+import com.imzz.galaxyassistant.voice.VoiceListener
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -67,6 +68,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var screenButton: Button
     private lateinit var cat: CatMascotView
     private val catHistory = mutableListOf<Pair<String, String>>()
+
+    // --- suara: ngobrol lewat mikrofon
+    private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var voiceListener: VoiceListener? = null
+    private var conversationMode = false
+    private var skyBusy = false
+    private var pendingVoiceAction: (() -> Unit)? = null
+    private lateinit var talkButton: Button
+    private val listenRunnable = Runnable { tryListen() }
 
     private val screenPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
@@ -89,7 +99,7 @@ class MainActivity : AppCompatActivity() {
             val spoken = words?.firstOrNull().orEmpty()
             if (spoken.isNotBlank()) {
                 commandInput.setText(spoken)
-                processCommand(spoken)
+                processCommand(spoken, fromVoice = true)
             }
         }
     }
@@ -142,12 +152,23 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
+        if (conversationMode) scheduleListen(600L)
+    }
+
+    override fun onPause() {
+        // Mikrofon tidak boleh tetap aktif saat app di latar.
+        uiHandler.removeCallbacks(listenRunnable)
+        voiceListener?.stop()
+        super.onPause()
     }
 
     override fun onDestroy() {
         AutopilotEngine.setListener(null)
         VoiceFeedback.speakingListener = null
         VoiceFeedback.textListener = null
+        uiHandler.removeCallbacks(listenRunnable)
+        voiceListener?.destroy()
+        voiceListener = null
         runCatching { unregisterReceiver(screenReceiver) }
         backgroundExecutor.shutdown()
         if (isFinishing) VoiceFeedback.shutdown()
@@ -316,11 +337,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun processCommand(raw: String) {
+    private fun processCommand(raw: String, fromVoice: Boolean = false) {
         val trimmed = raw.trim()
         if (trimmed.isBlank()) return
         val addressed = Regex("^(skylen|sky|len|meong|neko|kucing|cat)[,!:\\s]+(.+)$", RegexOption.IGNORE_CASE).find(trimmed)
-        val addressedToCat = addressed != null
+        // Ucapan lewat mikrofon dianggap ditujukan ke Sky, kecuali perintah sistem (buka, stop, scan, dst).
+        val addressedToCat = addressed != null || fromVoice
         val command = addressed?.groupValues?.get(2)?.trim()?.ifBlank { trimmed } ?: trimmed
         appendLog("YOU: $trimmed")
         commandInput.setText("")
@@ -342,6 +364,14 @@ class MainActivity : AppCompatActivity() {
             }
             lower.contains("scan aplikasi") || lower == "scan apps" -> {
                 scanApps()
+                return
+            }
+        }
+
+        if (fromVoice) {
+            val auto = Regex("^(autopilot|tolong lakukan|lakukan)\\s+(.+)$", RegexOption.IGNORE_CASE).find(command)
+            if (auto != null) {
+                requestAutopilotWithGoal(auto.groupValues[2].trim(), assist = true)
                 return
             }
         }
@@ -403,9 +433,9 @@ class MainActivity : AppCompatActivity() {
             if (picked == CatMascotView.Action.DANCE) cat.setMood(CatMascotView.Mood.HAPPY, 3400L)
         }, weightParams(left = 8))
         buttons.addView(actionButton("🐾 MEOW") {
-            MeowSynth.meow(0.9f + (Math.random().toFloat() * 0.3f))
+            MeowSynth.meow(0.7f + (Math.random().toFloat() * 0.15f))
             cat.playAction(CatMascotView.Action.HOP)
-            cat.say("Meow~", 1600L)
+            cat.say("Meong.", 1600L)
         }, weightParams(left = 8))
         catCard.addView(buttons, marginParams(top = 6))
 
@@ -413,6 +443,12 @@ class MainActivity : AppCompatActivity() {
         fileButtons.addView(actionButton("📦 BUKA ZIP / FILE") { packPicker.launch(arrayOf("*/*")) }, weightParams())
         fileButtons.addView(actionButton("📃 DAFTAR FILE") { showPackList() }, weightParams(left = 8))
         catCard.addView(fileButtons, marginParams(top = 8))
+
+        val voiceButtons = row()
+        talkButton = actionButton("🎙 NGOBROL SAMA SKY") { toggleConversation() }
+        voiceButtons.addView(talkButton, weightParams())
+        voiceButtons.addView(actionButton("🔊 SUARA SKY") { showVoicePicker() }, weightParams(left = 8))
+        catCard.addView(voiceButtons, marginParams(top = 8))
         catCard.addView(
             label("Usap kepala ${CatBrain.NAME}, ketuk badannya, atau ketik: \"skylen, joget\". Setelah buka ZIP: \"baca README.md\", \"baca lanjut\", \"daftar file\"", 10, Color.rgb(116, 132, 159), false)
                 .apply { setPadding(dp(4), dp(8), dp(4), 0) }
@@ -516,8 +552,8 @@ class MainActivity : AppCompatActivity() {
             if (count % 3 == 1) cat.say(CatBrain.petLines.random(), 2600L)
         }
         cat.onBodyTap = {
-            MeowSynth.meow(1.1f)
-            cat.say(listOf("Meow!", "Hup!", "Nyaa~", "Eh, kaget gw bre!").random(), 1600L)
+            MeowSynth.meow(0.8f)
+            cat.say(listOf("Meong.", "Hup!", "Apaan, bro?", "Eh, kaget gue!").random(), 1600L)
         }
         VoiceFeedback.speakingListener = { on -> runOnUiThread { cat.setSpeaking(on) } }
         VoiceFeedback.textListener = { text ->
@@ -529,7 +565,7 @@ class MainActivity : AppCompatActivity() {
         android.os.Handler(mainLooper).postDelayed({
             cat.playAction(CatMascotView.Action.WAVE)
             cat.setMood(CatMascotView.Mood.HAPPY, 3000L)
-            VoiceFeedback.speak("Meow! Halo bre, gw ${CatBrain.NAME}. Usap kepala gw atau ketik skylen, lalu pesan lu, buat ngobrol ya!", decorate = false)
+            VoiceFeedback.speak("Yo bro, gue ${CatBrain.NAME}. Tekan tombol ngobrol sama Sky, terus ngomong aja. Gue siap bantu apa pun.", decorate = false)
         }, 1400L)
     }
 
@@ -537,7 +573,7 @@ class MainActivity : AppCompatActivity() {
         val outfit = cat.cycleOutfit()
         getSharedPreferences("skylen", Context.MODE_PRIVATE).edit().putString("outfit", outfit.name).apply()
         cat.setMood(CatMascotView.Mood.HAPPY, 2200L)
-        cat.say("Gaya baru: ${outfit.label}! Cakep kan bre?", 2600L)
+        cat.say("Gaya baru: ${outfit.label}. Keren kan bro?", 2600L)
     }
 
     private fun reactToAutopilot(state: AutopilotEngine.State) {
@@ -559,8 +595,10 @@ class MainActivity : AppCompatActivity() {
         if (instant != null) cat.playAction(instant)
         cat.setMood(if (instant == CatMascotView.Action.DANCE) CatMascotView.Mood.HAPPY else CatMascotView.Mood.THINKING, 7000L)
         catHistory.add("user" to display.take(200))
+        skyBusy = true
         CatBrain.chat(message, catHistory.takeLast(6)) { reply ->
             runOnUiThread {
+                skyBusy = false
                 catHistory.add("cat" to reply.text)
                 while (catHistory.size > 12) catHistory.removeAt(0)
                 VoiceFeedback.speak(reply.text, decorate = false)
@@ -650,19 +688,160 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------------------------------------------------------------- suara: ngobrol lewat mikrofon
+
+    private fun hasMicPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestMic(action: (() -> Unit)?) {
+        pendingVoiceAction = action
+        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != AUDIO_PERMISSION_REQUEST) return
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        val action = pendingVoiceAction
+        pendingVoiceAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            setConversationMode(false)
+            Toast.makeText(this, "Izin mikrofon ditolak, Sky nggak bisa dengerin lu.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun ensureVoiceListener(): VoiceListener {
+        voiceListener?.let { return it }
+        val created = VoiceListener(
+            context = this,
+            onText = { spoken -> processCommand(spoken, fromVoice = true) },
+            onPartial = { partial -> statusText.text = "VOICE  •  $partial" },
+            onListening = { on ->
+                if (::cat.isInitialized) {
+                    if (on) cat.setMood(CatMascotView.Mood.ALERT, 8000L) else cat.setMood(CatMascotView.Mood.THINKING, 2500L)
+                }
+            },
+            onStatus = { message -> statusText.text = "VOICE  •  $message" },
+            onNeedPermission = { requestMic { if (conversationMode) scheduleListen(300L) else startVoiceInput() } },
+            onFinished = { canRetry ->
+                if (conversationMode) {
+                    if (canRetry) scheduleListen(900L) else setConversationMode(false)
+                }
+            }
+        )
+        voiceListener = created
+        return created
+    }
+
+    /** Sekali bicara: tekan, ngomong, hasilnya diproses sebagai perintah / obrolan ke Sky. */
     private fun startVoiceInput() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), AUDIO_PERMISSION_REQUEST)
+        if (!hasMicPermission()) {
+            requestMic { startVoiceInput() }
             return
         }
+        val listener = ensureVoiceListener()
+        if (!listener.isAvailable()) {
+            launchSystemVoiceDialog()
+            return
+        }
+        if (VoiceFeedback.isSpeaking) VoiceFeedback.stopSpeaking()
+        listener.start()
+    }
+
+    /** Cadangan kalau HP tidak punya pengenal suara bawaan app: pakai dialog suara sistem. */
+    private fun launchSystemVoiceDialog() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Ucapkan perintah untuk Galaxy Autopilot")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Ngomong aja bro, Sky dengerin")
         }
         runCatching { voiceLauncher.launch(intent) }.onFailure {
-            Toast.makeText(this, "Voice recognition tidak tersedia di perangkat ini.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Pengenal suara nggak ada di HP ini. Pasang aplikasi Google dulu.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun toggleConversation() {
+        if (conversationMode) {
+            setConversationMode(false)
+            VoiceFeedback.speak("Oke bro, gue berhenti dengerin.", decorate = false)
+            return
+        }
+        if (!hasMicPermission()) {
+            requestMic { setConversationMode(true) }
+            return
+        }
+        setConversationMode(true)
+    }
+
+    private fun setConversationMode(on: Boolean) {
+        conversationMode = on
+        if (::talkButton.isInitialized) talkButton.text = if (on) "🛑 STOP NGOBROL" else "🎙 NGOBROL SAMA SKY"
+        if (on) {
+            val listener = ensureVoiceListener()
+            if (!listener.isAvailable()) {
+                conversationMode = false
+                if (::talkButton.isInitialized) talkButton.text = "🎙 NGOBROL SAMA SKY"
+                launchSystemVoiceDialog()
+                return
+            }
+            VoiceFeedback.speak("Oke bro, gue dengerin. Ngomong aja, apa pun perintahnya.", decorate = false)
+            scheduleListen(400L)
+        } else {
+            uiHandler.removeCallbacks(listenRunnable)
+            voiceListener?.stop()
+            if (::cat.isInitialized) cat.setMood(CatMascotView.Mood.IDLE, 1500L)
+        }
+    }
+
+    private fun scheduleListen(delayMs: Long) {
+        uiHandler.removeCallbacks(listenRunnable)
+        if (conversationMode) uiHandler.postDelayed(listenRunnable, delayMs)
+    }
+
+    /** Mic baru dibuka kalau Sky sedang tidak bicara atau menunggu jawaban, supaya suaranya sendiri tidak ikut terdengar. */
+    private fun tryListen() {
+        if (!conversationMode || isFinishing) return
+        if (skyBusy || VoiceFeedback.isSpeaking) {
+            uiHandler.postDelayed(listenRunnable, 500L)
+            return
+        }
+        ensureVoiceListener().start()
+    }
+
+    private fun showVoicePicker() {
+        val voices = VoiceFeedback.indonesianVoices()
+        if (voices.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Suara Indonesia belum ada")
+                .setMessage(
+                    "HP lu belum punya data suara Bahasa Indonesia. Instal lewat Google Text-to-speech " +
+                        "(pilih Bahasa Indonesia, unduh suaranya), lalu buka menu ini lagi."
+                )
+                .setPositiveButton("Instal suara") { _, _ ->
+                    runCatching { startActivity(Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }
+                        .onFailure { runCatching { startActivity(Intent("com.android.settings.TTS_SETTINGS")) } }
+                }
+                .setNegativeButton("Tutup", null)
+                .show()
+            return
+        }
+        val labels = voices.mapIndexed { i, v -> VoiceFeedback.labelFor(v, i) }.toTypedArray()
+        val checked = voices.indexOfFirst { it.name == VoiceFeedback.selectedVoiceName() }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Suara Sky")
+            .setSingleChoiceItems(labels, checked) { _, which ->
+                VoiceFeedback.selectVoice(voices[which])
+                VoiceFeedback.speak("Gue ${CatBrain.NAME}, asisten lu. Suara gue gini, cocok nggak bro?", decorate = false)
+            }
+            .setNeutralButton("Nada: ${VoiceFeedback.pitchLabel()}") { _, _ ->
+                VoiceFeedback.cyclePitch()
+                VoiceFeedback.speak("Nada gue sekarang ${VoiceFeedback.pitchLabel()}, gimana bro?", decorate = false)
+                showVoicePicker()
+            }
+            .setPositiveButton("Tutup", null)
+            .show()
     }
 
     private fun visionEnabled(): Boolean =
