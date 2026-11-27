@@ -99,6 +99,30 @@ object Mrpack {
         return host in allowedHosts
     }
 
+    const val PENDING = ".imzyy-pending"
+
+    /**
+     * Moves a staged modpack (see in-game MODS) into the instance. Only call while the game process is NOT running:
+     * replacing mod jars under a live JVM crashes it. Returns the number of files applied.
+     */
+    fun applyPending(instance: File): Int {
+        val src = File(instance, PENDING)
+        if (!src.isDirectory) return 0
+        var n = 0
+        src.walkTopDown().filter { it.isFile }.toList().forEach { f ->
+            val dest = File(instance, f.relativeTo(src).path)
+            dest.parentFile?.mkdirs()
+            if (dest.exists()) dest.delete()
+            if (!f.renameTo(dest)) {
+                f.copyTo(dest, overwrite = true)
+                f.delete()
+            }
+            n++
+        }
+        src.deleteRecursively()
+        return n
+    }
+
     fun install(ctx: Context, uri: Uri, info: MrInfo, target: File, say: (String) -> Unit, onProgress: (Float) -> Unit) {
         target.mkdirs()
         val root = target.canonicalFile

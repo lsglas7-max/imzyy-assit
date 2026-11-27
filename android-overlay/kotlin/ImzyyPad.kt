@@ -644,13 +644,16 @@ internal object PadActions {
         for (k in ks.asReversed()) { h.postDelayed({ ImzyyInput.key(act, k.glfw, k.droid, false) }, t); t += 70L }
     }
 
-    /** New mods only load on a fresh JVM: go back to the IMZYY hub and end the game process. */
+    /**
+     * New mods only load on a fresh JVM. The hub (main process) waits until this game process is gone, applies any
+     * staged modpack and starts the very same game intent again, so the player lands back in the game.
+     */
     fun restart(act: MinecraftActivity) {
         try {
-            act.startActivity(
-                Intent().setClassName(act.packageName, ImzyyHubActivity::class.java.name)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            )
+            val hub = Intent().setClassName(act.packageName, ImzyyHubActivity::class.java.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            act.intent?.let { hub.putExtra(ImzyyHubActivity.EXTRA_RELAUNCH, Intent(it)) }
+            act.startActivity(hub)
         } catch (_: Throwable) {
         }
         act.finishAndRemoveTask()
@@ -738,7 +741,7 @@ class ModsPanel(private val act: MinecraftActivity) {
             rr.addView(PadUi.pill(act, "RESTART GAME", false, 6) { PadActions.restart(act) }, PadUi.weight())
             rr.addView(PadUi.pill(act, "TUTUP", true, 6) { d.dismiss() }, PadUi.weight())
             col.addView(rr)
-            col.addView(PadUi.text(act, "Mod / modpack baru baru termuat setelah RESTART GAME (lalu PLAY lagi). RELOAD hanya memuat ulang tekstur & render, tanpa restart.", 10f, dim, false))
+            col.addView(PadUi.text(act, "Modpack disimpan dulu dengan aman, lalu diterapkan saat RESTART GAME (game dibuka lagi otomatis). RELOAD hanya memuat ulang tekstur & render, tanpa restart.", 10f, dim, false))
             d.setOnDismissListener { list = null; log = null; bar = null }
         }
         search("", mc, loader, meta, dir)
@@ -806,8 +809,9 @@ class ModsPanel(private val act: MinecraftActivity) {
                     val packLoader = listOf("fabric-loader" to "fabric", "quilt-loader" to "quilt", "neoforge" to "neoforge", "forge" to "forge")
                         .firstOrNull { info.deps.containsKey(it.first) }?.second
                     if (packLoader != null && packLoader != meta.loaderType) error("Modpack butuh loader $packLoader, instance ini ${meta.loaderType ?: "vanilla"}")
-                    Mrpack.install(act, uri, info, dir, { s -> say(s) }, { p -> progress(0.15f + p * 0.85f) })
-                    say("✓ ${info.name} terpasang. Tekan RESTART GAME lalu PLAY agar mod dimuat.")
+                    // Staged: files are copied into a side folder so the running JVM's mod jars are never touched.
+                    Mrpack.install(act, uri, info, File(dir, Mrpack.PENDING), { s -> say(s) }, { p -> progress(0.15f + p * 0.85f) })
+                    say("✓ ${info.name} siap. Tekan RESTART GAME: modpack diterapkan lalu game dibuka lagi otomatis.")
                 } finally {
                     tmp.delete()
                 }

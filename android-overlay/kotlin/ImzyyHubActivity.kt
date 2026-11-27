@@ -68,6 +68,50 @@ class ImzyyHubActivity : ComponentActivity() {
         }
         ImzyyWindow.install(application)
         setContent { ProvideTextStyle(TextStyle(fontFamily = ImzyyFonts.family)) { HubApp() } }
+        handleRelaunch(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleRelaunch(intent)
+    }
+
+    /**
+     * In-game RESTART GAME lands here with the original game intent. Wait for the old game process to die
+     * (a live process would be reused, not restarted), apply the staged modpack, then start the game again.
+     */
+    @Suppress("DEPRECATION")
+    private fun handleRelaunch(i: Intent?) {
+        val game = i?.getParcelableExtra<Intent>(EXTRA_RELAUNCH) ?: return
+        i.removeExtra(EXTRA_RELAUNCH)
+        android.widget.Toast.makeText(this, "Memulai ulang game…", android.widget.Toast.LENGTH_SHORT).show()
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        var tries = 0
+        val wait = object : Runnable {
+            override fun run() {
+                val alive = am.runningAppProcesses?.any { it.processName.endsWith(":minecraft") } == true
+                if (alive && tries++ < 40) {
+                    h.postDelayed(this, 150L)
+                    return
+                }
+                Thread {
+                    try {
+                        game.getStringExtra("instance_dir")?.let { Mrpack.applyPending(File(it)) }
+                    } catch (_: Throwable) {
+                    }
+                    runOnUiThread {
+                        try { startActivity(game) } catch (_: Throwable) { }
+                    }
+                }.start()
+            }
+        }
+        h.postDelayed(wait, 300L)
+    }
+
+    companion object {
+        const val EXTRA_RELAUNCH = "imzyy_relaunch"
     }
 }
 
@@ -88,6 +132,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     var smooth by mutableStateOf(prefs.getBoolean("smooth", false))
     var texLevel by mutableStateOf(1)
     var antiLag by mutableStateOf(prefs.getBoolean("antilag", false))
+    var joinLag by mutableStateOf(prefs.getBoolean("joinlag", false))
     /** 0 = low, 1 = mid, 2 = flagship (by total RAM). */
     val tier: Int = run {
         val am = ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
@@ -283,6 +328,16 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
         } else say("Anti lag gerak dimatikan.")
     }
 
+    fun switchJoinLag(on: Boolean) {
+        joinLag = on
+        prefs.edit().putBoolean("joinlag", on).apply()
+        if (on) runJob {
+            val d = needTarget()
+            val n = FpsTuner.applyValues(d, FpsTuner.joinValues(d, tier))
+            say("✓ Anti lag masuk world aktif untuk HP $tierName ($n opsi). Dipasang ulang otomatis tiap PLAY.")
+        } else say("Anti lag masuk world dimatikan. Pakai KEMBALIKAN OPTIONS ASLI jika mau membatalkan opsi yang sudah ditulis.")
+    }
+
     fun installVoxy() = runJob {
         val l = needLoader()
         if (l != "fabric" && l != "quilt") error("Voxy hanya untuk instance Fabric/Quilt")
@@ -327,6 +382,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     /** Blocking (worker thread). Verifies the selected instance's asset objects and re-downloads what is missing. */
     private fun assetJob(): AssetRepair.Report? {
         val m = meta ?: return null
+        runCatching { Mrpack.applyPending(InstanceManager.instanceDir(ctx, m.id)) }.getOrNull()?.takeIf { it > 0 }?.let { say("✓ Modpack tertunda diterapkan ($it file)") }
         say("Memeriksa asset Minecraft ${m.mcVersion}…")
         val r = AssetRepair.repair(ctx, InstanceManager.instanceDir(ctx, m.id), m.assetIndexId) { progress = it }
         when {
@@ -343,6 +399,7 @@ class HubState(val ctx: Context, val scope: CoroutineScope) {
     fun play() {
         if (smooth) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.SMOOTH) } }
         if (antiLag) runCatching { meta?.let { FpsTuner.applyValues(InstanceManager.instanceDir(ctx, it.id), FpsTuner.lagValues(tier)) } }
+        if (joinLag) runCatching { meta?.let { val d = InstanceManager.instanceDir(ctx, it.id); FpsTuner.applyValues(d, FpsTuner.joinValues(d, tier)) } }
         liteAutoTune()
         if (meta == null || busy) { openLauncher(); return }
         busy = true
@@ -573,6 +630,18 @@ private fun BoostTab(s: HubState) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip("AKTIF", s.antiLag) { s.switchAntiLag(true) }
                         Chip("MATI", !s.antiLag) { s.switchAntiLag(false) }
+                    }
+                }
+            }
+        }
+        item {
+            Reveal(4) {
+                Panel {
+                    Text("Kurangi lag pas masuk world", color = Ink.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Render & simulation distance diturunkan sesuai HP (${s.tierName}), update chunk tidak menahan frame, partikel/bayangan/biome blend diringankan, jadi loading chunk awal tidak patah-patah. Hanya menurunkan jarak (nilai yang sudah kamu set lebih kecil tidak dinaikkan). Dipasang ulang tiap PLAY.", color = Ink.Sub, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("AKTIF", s.joinLag) { s.switchJoinLag(true) }
+                        Chip("MATI", !s.joinLag) { s.switchJoinLag(false) }
                     }
                 }
             }

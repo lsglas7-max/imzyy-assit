@@ -51,6 +51,28 @@ object FpsTuner {
         }
     }
 
+    private fun current(instance: File, key: String): String? =
+        File(instance, "options.txt").takeIf { it.exists() }?.readLines()?.firstOrNull { it.startsWith("$key:") }?.substringAfter(':')
+
+    /**
+     * Cheaper world join: fewer chunks to build/simulate at once, no chunk-update stalls.
+     * Distances are only ever lowered (a value the user already set lower is kept). tier: 0 low, 1 mid, 2 flagship.
+     */
+    fun joinValues(instance: File, tier: Int): List<Pair<String, String>> {
+        val renderCap = when (tier) { 0 -> 4; 1 -> 6; else -> 8 }
+        val simCap = when (tier) { 0 -> 4; 1 -> 5; else -> 6 }
+        fun capped(key: String, cap: Int): Pair<String, String> {
+            val cur = current(instance, key)?.trim()?.toIntOrNull()
+            return key to (if (cur != null && cur < cap) cur else cap).toString()
+        }
+        return listOf(
+            capped("renderDistance", renderCap), capped("simulationDistance", simCap),
+            "prioritizeChunkUpdates" to "0", "biomeBlendRadius" to "0", "entityShadows" to "false",
+            "particles" to "2", "mipmapLevels" to "0", "improvedTransparency" to "false",
+            "enableVsync" to "false", "entityDistanceScaling" to "0.6",
+        )
+    }
+
     fun apply(instance: File, profile: Profile): Int = applyValues(instance, profile.values)
 
     fun applyValues(instance: File, values: List<Pair<String, String>>): Int {
