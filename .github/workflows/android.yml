@@ -1,7 +1,3 @@
-cd ~/imzyy-assit
-
-git pull --rebase origin main
-cat > .github/workflows/android.yml <<'EOF'
 name: Android Build
 on:
   workflow_dispatch:
@@ -31,7 +27,3 @@ jobs:
         with:
           name: galaxy-autopilot-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-EOF
-git add -A
-git commit -m "CI: pakai Android SDK bawaan runner"
-git push origin main
