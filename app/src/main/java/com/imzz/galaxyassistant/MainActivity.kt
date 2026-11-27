@@ -222,7 +222,7 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(Color.rgb(113, 128, 155))
             setTextColor(Color.WHITE)
             textSize = 13f
-            singleLine = true
+            setSingleLine(true)
             imeOptions = EditorInfo.IME_ACTION_SEND
             setPadding(dp(12), dp(10), dp(12), dp(10))
             background = rounded(Color.rgb(25, 35, 55), Color.rgb(47, 62, 91), 12)
@@ -820,7 +820,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun appendLog(message: String) {
         if (!::activityLog.isInitialized) return
-        val old = activityLog.text.toString().lineSequence().takeLast(7).joinToString("\n")
+        val old = activityLog.text.toString().lines().takeLast(7).joinToString("\n")
         activityLog.text = (old + "\n• " + message).takeLast(1700)
     }
 
