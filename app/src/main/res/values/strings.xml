@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ASISTEN GALAXY IMZZ</string>
+    <string name="accessibility_description">Mengizinkan Galaxy Autopilot menjalankan gesture dan membaca struktur UI setelah pengguna mengaktifkannya secara manual. Kontrol dapat dihentikan kapan saja.</string>
+</resources>
