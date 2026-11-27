@@ -1,12 +1,4 @@
-<<<<<<< HEAD
 <resources>
     <string name="app_name">ASISTEN GALAXY IMZZ</string>
     <string name="accessibility_description">Mengizinkan Galaxy Autopilot menjalankan gesture dan membaca struktur UI setelah pengguna mengaktifkannya secara manual. Kontrol dapat dihentikan kapan saja.</string>
-=======
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="cleaner_label">IMZYY Cleaner</string>
-    <string name="cleaner_desc">Membantu menekan tombol konfirmasi pada dialog bersihkan cache bawaan Android, serta tombol Clear Cache dan Force Stop di halaman Info Aplikasi, atas permintaanmu dari panel Game Turbo. Progres tampil sebagai log di floating window. Tidak membaca atau menyimpan isi layar.</string>
-    <string name="cleaner_summary">Force Stop dan Clear Cache per aplikasi dari panel Game Turbo</string>
->>>>>>> 113562a88c7a3cf5611046853739faf5ecfe4949
 </resources>

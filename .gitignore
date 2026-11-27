@@ -1,15 +1,6 @@
-<<<<<<< HEAD
 .gradle/
 .idea/
 local.properties
 **/build/
 *.iml
-=======
-.build/
-.gradle/
-local.properties
-output/
-*.iml
-.idea/
->>>>>>> 113562a88c7a3cf5611046853739faf5ecfe4949
 .DS_Store
