@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.iml
+.DS_Store
+proxy/.env
+proxy/node_modules/
