@@ -1,0 +1,6 @@
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.imzz.galaxyassistant.assistant.SkylenVoiceInteractionSessionService"
+    android:recognitionService="com.imzz.galaxyassistant.assistant.SkylenRecognitionService"
+    android:supportsAssist="false"
+    android:supportsLaunchVoiceAssistFromKeyguard="false"
+    android:supportsLocalInteraction="true" />
