@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace = 'com.imzyyknox.gameturbo'
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = 'com.imzyyknox.gameturbo'
+        minSdk = 26
+        targetSdk = 37
+        versionCode = 37
+        versionName = '10.0'
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // Debug build tidak boleh gagal gara-gara lint.
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+}
