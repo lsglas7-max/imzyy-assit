@@ -1,4 +1,5 @@
 cd ~/imzyy-assit
+git pull --rebase origin main
 cat > .github/workflows/android.yml <<'EOF'
 name: Android Build
 on:
